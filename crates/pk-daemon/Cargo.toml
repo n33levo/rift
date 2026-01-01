@@ -1,0 +1,20 @@
+[package]
+name = "pk-daemon"
+version.workspace = true
+edition.workspace = true
+description = "Background daemon for PortKey P2P tunneling"
+
+[dependencies]
+pk-core = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+libp2p = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bincode = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+bytes = { workspace = true }

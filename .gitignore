@@ -1,0 +1,70 @@
+# Rust build artifacts
+/target/
+**/target/
+**/*.rs.bk
+
+# Cargo.lock (uncomment if building a library)
+# Cargo.lock
+
+# Environment files (SECURITY: Never commit secrets!)
+**/.env
+**/.env.*
+!**/.env.example
+.env.portkey.tmp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE_BIN/
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.iml
+
+# Rust-specific
+*.pdb
+*.rlib
+*.so
+*.dylib
+*.dll
+
+# Testing
+*.profraw
+*.profdata
+
+# Debug and profiling
+perf.data
+perf.data.old
+flamegraph.svg
+callgrind.out.*
+
+# Documentation
+/doc/
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Logs
+*.log
+logs/

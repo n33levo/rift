@@ -1,0 +1,26 @@
+[package]
+name = "pk-cli"
+version.workspace = true
+edition.workspace = true
+description = "CLI interface for PortKey P2P tunneling tool"
+
+[[bin]]
+name = "pk"
+path = "src/main.rs"
+
+[dependencies]
+pk-core = { workspace = true }
+pk-daemon = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+clap = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dirs = { workspace = true }
