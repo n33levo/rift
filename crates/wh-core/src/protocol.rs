@@ -1,19 +1,19 @@
-//! PortKey Protocol Definition
+//! Rift Protocol Definition
 //!
-//! Defines the wire protocol for PortKey P2P communication.
+//! Defines the wire protocol for Rift P2P communication.
 //! This includes message types for tunnel establishment, data forwarding,
 //! and secrets exchange.
 
 use serde::{Deserialize, Serialize};
 
-/// Protocol identifier for PortKey
-pub const PORTKEY_PROTOCOL: &str = "/portkey/tunnel/1.0.0";
+/// Protocol identifier for Rift
+pub const RIFT_PROTOCOL: &str = "/rift/tunnel/1.0.0";
 
 /// Protocol identifier for secrets exchange
-pub const PORTKEY_SECRETS_PROTOCOL: &str = "/portkey/secrets/1.0.0";
+pub const RIFT_SECRETS_PROTOCOL: &str = "/rift/secrets/1.0.0";
 
-/// Trait defining the PortKey protocol behavior
-pub trait PortKeyProtocol: Send + Sync {
+/// Trait defining the Rift protocol behavior
+pub trait RiftProtocol: Send + Sync {
     /// Get the protocol identifier
     fn protocol_id(&self) -> &'static str;
 
@@ -21,7 +21,7 @@ pub trait PortKeyProtocol: Send + Sync {
     fn is_supported(&self, version: &str) -> bool;
 }
 
-/// Default implementation of PortKey protocol
+/// Default implementation of Rift protocol
 #[derive(Debug, Clone)]
 pub struct DefaultProtocol {
     #[allow(dead_code)]
@@ -36,9 +36,9 @@ impl Default for DefaultProtocol {
     }
 }
 
-impl PortKeyProtocol for DefaultProtocol {
+impl RiftProtocol for DefaultProtocol {
     fn protocol_id(&self) -> &'static str {
-        PORTKEY_PROTOCOL
+        RIFT_PROTOCOL
     }
 
     fn is_supported(&self, version: &str) -> bool {
@@ -50,7 +50,7 @@ impl PortKeyProtocol for DefaultProtocol {
 // Message Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Top-level message envelope for all PortKey communications
+/// Top-level message envelope for all Rift communications
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     /// Message ID for tracking/correlation

@@ -1,58 +1,110 @@
 # Contributing to Rift
 
-Thank you for your interest in contributing to Rift! This document provides guidelines and instructions for contributing.
+Thanks for helping improve Rift — a pairing-grade, peer-to-peer localhost tunneling tool.
 
-## Getting Started
+## Quick Start (Dev)
 
 ### Prerequisites
+- **Rust:** stable toolchain (1.75+) via [rustup.rs](https://rustup.rs)
+- **Build:** `cargo build`
+- **Test:** `cargo test`
+- **Run locally:** `cargo run -- <args>`
 
-- Rust 1.75 or higher (install via [rustup.rs](https://rustup.rs))
-- Git
-- Basic familiarity with P2P networking concepts (helpful but not required)
+> **Note:** Rift uses libp2p (QUIC transport) and the Noise Protocol. On some systems you may need OpenSSL development headers. On Ubuntu/Debian: `sudo apt-get install libssl-dev pkg-config`.
 
-### Development Setup
+---
 
-1. **Fork the repository** on GitHub
-2. **Clone your fork:**
-   ```bash
-   git clone https://github.com/yourusername/rift
-   cd rift
-   ```
-3. **Create a feature branch:**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-4. **Build the project:**
-   ```bash
-   cargo build
-   ```
+## Project Goals
 
-## Running Tests
+Rift optimizes for:
+- **Pairing workflows:** Local-to-local port mapping for teammates debugging together
+- **Secure by default:** Noise Protocol encryption, explicit connection approval
+- **Explicit consent:** Every inbound connection requires host approval
+- **Optional secrets handoff:** Config/env sharing is opt-in, never implicit
 
-### Quick Smoke Tests
+**Non-goals:**
+- Being a public hosting platform (use ngrok / Cloudflare Tunnel for that)
+- "Magic links" that bypass explicit approval
+- Silent or automatic secrets exfiltration
 
-Run basic unit tests to verify functionality:
+---
 
-```bash
-cargo test
+## Repo Structure
+
+```
+rift/
+├── crates/
+│   ├── wh-core/           # Core P2P networking and tunneling
+│   │   ├── network/       # libp2p swarm, QUIC transport, peer discovery
+│   │   ├── secrets.rs     # EnvVault: encrypted secrets (X25519 + AES-GCM)
+│   │   ├── crypto.rs      # Noise Protocol, key exchange
+│   │   └── proxy/         # TCP ↔ QUIC stream bridging
+│   ├── wh-daemon/         # Background daemon, session management
+│   └── wh-cli/            # CLI commands and TUI
+│       ├── cli/           # Command implementations (share, connect, info)
+│       └── tui/           # Terminal UI (ratatui-based dashboard)
+└── target/release/rift    # Compiled binary
 ```
 
-For verbose output:
-```bash
-cargo test -- --nocapture
-```
+---
+
+## Security Model (Important)
+
+When contributing, **preserve these invariants:**
+
+### 1. Explicit Host Approval
+- Every inbound connection **must** trigger a host approval prompt (unless `--auto-approve` is explicitly set).
+- No "magic links" that auto-accept connections.
+
+### 2. No Secrets Exfiltration
+- Secrets sharing is **opt-in only**.
+- Host must use `--secrets <file>` to share.
+- Peer must use `--request-secrets` to receive.
+- Both actions should be visible and auditable in logs/UI.
+
+### 3. Encryption by Default
+- All tunnel traffic uses QUIC + Noise Protocol.
+- All secret payloads use X25519 (ECDH) + AES-256-GCM.
+- No plaintext secrets on the wire.
+
+### 4. No Silent Persistence
+- Secrets should not be automatically saved to disk unless the user explicitly requests it (`--save-secrets`).
+- Identity keys are stored securely in the system keyring where possible.
+
+**If you change anything in the trust boundary** (handshake, approval flow, secret handling, key storage), **open a PR with:**
+- A short threat-model note (what changes, what could go wrong)
+- Tests or reproduction steps demonstrating the security property is maintained
+
+---
+
+## Coding Standards
+
+- **Formatting:** `cargo fmt` before committing
+- **Linting:** `cargo clippy -- -D warnings` (treat warnings as errors)
+- **Prefer small, focused PRs:** Easier to review, faster to merge
+
+### Style Guide
+- Use descriptive variable names
+- Add doc comments (`///`) for public APIs
+- Keep functions small and single-purpose
+- Handle errors explicitly (avoid `.unwrap()` in production code)
+
+---
+
+## Testing Guidelines
+
+### Unit Tests
+- Parser/config/crypto helper functions should have unit tests
+- Run: `cargo test --lib`
 
 ### Integration Tests
-
-Run specific integration tests:
-
-```bash
-cargo test -p wh-core --test tunnel_integration
-```
+Where feasible, add tests for:
+- **Handshake approval path:** Verify that connections are rejected without approval
+- **Port mapping correctness:** Ensure traffic flows correctly through the tunnel
+- **Secrets opt-in behavior:** Verify secrets are only sent when explicitly requested
 
 ### Manual Testing
-
-For end-to-end manual testing:
+For end-to-end scenarios (requires two terminals or two machines):
 
 **Terminal 1 - Start a test server:**
 ```bash
@@ -61,12 +113,12 @@ python3 -m http.server 3000
 
 **Terminal 2 - Share the port:**
 ```bash
-cargo run --release -- share 3000
+cargo run --release -- share 3000 --secrets .env.test
 ```
 
-**Terminal 3 - Connect to it:**
+**Terminal 3 - Connect:**
 ```bash
-cargo run --release -- connect rift://<LINK-FROM-TERMINAL-2>
+cargo run --release -- connect rift://<LINK> --request-secrets
 ```
 
 **Terminal 4 - Test the tunnel:**
@@ -74,88 +126,52 @@ cargo run --release -- connect rift://<LINK-FROM-TERMINAL-2>
 curl http://localhost:3000
 ```
 
-### Debug Logging
-
-Enable debug logs for troubleshooting:
-
-```bash
-RUST_LOG=debug cargo run -- share 3000
-```
-
-## Code Style
-
-- **Formatting:** Run `cargo fmt` before committing
-- **Linting:** Run `cargo clippy` and fix warnings
-- **Documentation:** Add doc comments for public APIs
-
-## Submitting Changes
-
-1. **Ensure all tests pass:** `cargo test`
-2. **Format your code:** `cargo fmt`
-3. **Check for issues:** `cargo clippy`
-4. **Commit with clear messages:**
-   ```bash
-   git commit -m "feat: Add connection timeout handling"
-   ```
-5. **Push to your fork:**
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-6. **Open a Pull Request** on GitHub
-
-### Commit Message Guidelines
-
-Use conventional commits format:
-
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `docs:` - Documentation changes
-- `refactor:` - Code refactoring
-- `test:` - Adding or updating tests
-- `chore:` - Maintenance tasks
-
-Example: `feat: Add automatic reconnection on connection loss`
-
-## What to Contribute
-
-### Good First Issues
-
-- Documentation improvements
-- Bug fixes
-- Test coverage improvements
-- Examples and tutorials
-
-### Feature Ideas
-
-- Custom domain support
-- QR code generation for mobile
-- Web UI alternative to TUI
-- Performance optimizations
-- Platform-specific improvements
-
-### Areas Needing Help
-
-- Windows support testing
-- CI/CD pipeline setup
-- Homebrew formula
-- Binary release automation
-
-## Code Review Process
-
-1. Maintainers will review your PR within a few days
-2. Address any requested changes
-3. Once approved, your PR will be merged
-
-## Getting Help
-
-- **Questions?** Open a GitHub issue with the `question` label
-- **Bug reports?** Open an issue with detailed reproduction steps
-- **Feature requests?** Open an issue describing the use case
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
+**Document manual tests** in your PR if they can't be automated.
 
 ---
 
-Thank you for making Rift better! 
+## Issue Reporting
+
+When filing an issue, include:
+- **OS + Rust version:** `uname -a` and `rustc --version`
+- **Command used:** Full command with flags (redact secrets!)
+- **Logs:** Run with `RUST_LOG=debug` and include relevant output
+- **Expected vs actual behavior:** What should happen vs what did happen
+
+---
+
+## Pull Request Checklist
+
+Before submitting a PR:
+- [ ] `cargo test` passes
+- [ ] `cargo fmt` applied
+- [ ] `cargo clippy -- -D warnings` clean
+- [ ] README/docs updated if behavior changes
+- [ ] Security invariants maintained:
+  - [ ] Connection approval required (unless `--auto-approve`)
+  - [ ] Secrets sharing is opt-in
+  - [ ] Encryption enabled by default
+  - [ ] No silent persistence of secrets
+
+---
+
+## Code of Conduct
+
+- Be respectful and constructive
+- Assume good faith in discussions
+- No harassment, discrimination, or toxic behavior
+- Focus on the code and ideas, not the person
+
+---
+
+## Roadmap / Areas Needing Help
+
+- **Platform support:** Windows testing and compatibility fixes
+- **CI/CD:** GitHub Actions for automated testing and releases
+- **Packaging:** Homebrew formula, pre-built binaries
+- **Documentation:** Tutorials, architecture diagrams, security audits
+- **Performance:** Benchmarking, optimization of QUIC stream handling
+
+---
+
+Thank you for making Rift better! 🚀 

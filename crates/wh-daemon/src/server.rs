@@ -6,7 +6,7 @@ use futures::StreamExt;
 use wh_core::{
     bridge_stream_to_tcp, open_tunnel_stream,
     send_secrets, receive_secrets,
-    NetworkEvent, PeerNetwork, PortKeyConfig, Result, PeerId,
+    NetworkEvent, PeerNetwork, RiftConfig, Result, PeerId,
     secrets::EnvVault,
 };
 use std::collections::HashMap;
@@ -92,7 +92,7 @@ pub enum DaemonCommand {
 pub struct DaemonServer {
     /// Configuration
     #[allow(dead_code)]
-    config: PortKeyConfig,
+    config: RiftConfig,
 
     /// P2P Network (owned, not shared)
     network: Option<PeerNetwork>,
@@ -100,7 +100,7 @@ pub struct DaemonServer {
     /// Peer ID (cached after start)
     peer_id: String,
 
-    /// PortKey link (cached after start)
+    /// Rift link (cached after start)
     link: String,
 
     /// Event sender
@@ -124,10 +124,10 @@ pub struct DaemonServer {
 
 impl DaemonServer {
     /// Create a new daemon server
-    pub async fn new(config: PortKeyConfig) -> Result<Self> {
+    pub async fn new(config: RiftConfig) -> Result<Self> {
         let network = PeerNetwork::new(config.clone()).await?;
         let peer_id = network.peer_id().to_string();
-        let link = network.portkey_link();
+        let link = network.rift_link();
 
         let (event_tx, event_rx) = mpsc::channel(256);
         let (command_tx, command_rx) = mpsc::channel(64);
@@ -164,14 +164,14 @@ impl DaemonServer {
         self.peer_id.clone()
     }
 
-    /// Get PortKey link
-    pub async fn portkey_link(&self) -> String {
+    /// Get Rift link
+    pub async fn rift_link(&self) -> String {
         self.link.clone()
     }
 
     /// Start the daemon
     pub async fn start(&mut self) -> Result<()> {
-        info!("Starting PortKey daemon...");
+        info!("Starting Rift daemon...");
 
         // Start listening
         if let Some(ref mut network) = self.network {

@@ -1,6 +1,6 @@
-//! PortKey CLI
+//! Rift CLI
 //!
-//! Command-line interface for the PortKey P2P tunneling tool.
+//! Command-line interface for the Rift P2P tunneling tool.
 
 mod cli;
 mod tui;

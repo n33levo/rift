@@ -1,4 +1,4 @@
-//! EnvVault - Secrets Management for PortKey
+//! EnvVault - Secrets Management for Rift
 //!
 //! Provides secure storage and sharing of environment variables.
 //! Uses the system keyring for local storage and X25519/AES-GCM for transit.
@@ -11,10 +11,10 @@ use keyring::Entry;
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::{decrypt_from_sender, encrypt_for_recipient, KeyPair, NONCE_SIZE};
-use crate::error::{PortKeyError, Result};
+use crate::error::{RiftError, Result};
 
 /// Service name for keyring storage
-const KEYRING_SERVICE: &str = "portkey";
+const KEYRING_SERVICE: &str = "rift";
 
 /// Key for storing the identity keypair
 const IDENTITY_KEY: &str = "identity";
@@ -39,7 +39,7 @@ pub struct SecretsResponse {
     pub sender_public_key: Vec<u8>,
 }
 
-/// EnvVault manages secrets for PortKey tunnels
+/// EnvVault manages secrets for Rift tunnels
 #[derive(Debug, Clone)]
 pub struct EnvVault {
     /// Environment variables to share
@@ -69,16 +69,16 @@ impl EnvVault {
     /// Load or create identity keypair from system keyring
     pub fn load_or_create_identity() -> Result<KeyPair> {
         let entry = Entry::new(KEYRING_SERVICE, IDENTITY_KEY)
-            .map_err(|e| PortKeyError::KeyringError(e.to_string()))?;
+            .map_err(|e| RiftError::KeyringError(e.to_string()))?;
 
         // Try to load existing key
         match entry.get_password() {
             Ok(key_b64) => {
                 let key_bytes = BASE64.decode(&key_b64)
-                    .map_err(|e| PortKeyError::KeyringError(format!("Invalid key format: {}", e)))?;
+                    .map_err(|e| RiftError::KeyringError(format!("Invalid key format: {}", e)))?;
                 
                 if key_bytes.len() != 32 {
-                    return Err(PortKeyError::KeyringError("Invalid key length".to_string()));
+                    return Err(RiftError::KeyringError("Invalid key length".to_string()));
                 }
 
                 let mut arr = [0u8; 32];
@@ -92,7 +92,7 @@ impl EnvVault {
                 
                 entry
                     .set_password(&key_b64)
-                    .map_err(|e| PortKeyError::KeyringError(e.to_string()))?;
+                    .map_err(|e| RiftError::KeyringError(e.to_string()))?;
 
                 Ok(keypair)
             }
@@ -117,7 +117,7 @@ impl EnvVault {
         let path = path.as_ref();
         
         if !path.exists() {
-            return Err(PortKeyError::EnvParseError(format!(
+            return Err(RiftError::EnvParseError(format!(
                 "File not found: {}",
                 path.display()
             )));
@@ -145,7 +145,7 @@ impl EnvVault {
                 let value = Self::parse_value(value.trim());
 
                 if key.is_empty() {
-                    return Err(PortKeyError::EnvParseError(format!(
+                    return Err(RiftError::EnvParseError(format!(
                         "Empty key at line {}",
                         line_num + 1
                     )));
@@ -153,7 +153,7 @@ impl EnvVault {
 
                 self.secrets.insert(key, value);
             } else {
-                return Err(PortKeyError::EnvParseError(format!(
+                return Err(RiftError::EnvParseError(format!(
                     "Invalid format at line {}: expected KEY=VALUE",
                     line_num + 1
                 )));
@@ -219,7 +219,7 @@ impl EnvVault {
     /// Encrypt secrets for a requesting peer
     pub fn encrypt_for_peer(&self, peer_public_key: &[u8]) -> Result<SecretsResponse> {
         if peer_public_key.len() != 32 {
-            return Err(PortKeyError::InvalidPublicKey(
+            return Err(RiftError::InvalidPublicKey(
                 "Public key must be 32 bytes".to_string(),
             ));
         }
@@ -245,13 +245,13 @@ impl EnvVault {
     /// Decrypt secrets from a peer's response
     pub fn decrypt_from_peer(&self, response: &SecretsResponse) -> Result<HashMap<String, String>> {
         if response.ephemeral_public_key.len() != 32 {
-            return Err(PortKeyError::InvalidPublicKey(
+            return Err(RiftError::InvalidPublicKey(
                 "Ephemeral public key must be 32 bytes".to_string(),
             ));
         }
 
         if response.nonce.len() != NONCE_SIZE {
-            return Err(PortKeyError::DecryptionFailed(
+            return Err(RiftError::DecryptionFailed(
                 "Invalid nonce size".to_string(),
             ));
         }
@@ -293,7 +293,7 @@ impl EnvVault {
     /// Write secrets to a temporary file
     pub fn write_to_temp_file(&self) -> Result<std::path::PathBuf> {
         let temp_dir = tempfile::tempdir()?;
-        let temp_path = temp_dir.path().join(".env.portkey");
+        let temp_path = temp_dir.path().join(".env.rift");
         
         std::fs::write(&temp_path, self.to_env_format())?;
         

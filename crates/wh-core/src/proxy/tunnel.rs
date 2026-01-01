@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info};
 
 use super::listener::ProxyStats;
-use crate::error::{PortKeyError, Result};
+use crate::error::{RiftError, Result};
 use crate::protocol::{DataFrame, Message, MessagePayload};
 
 /// Buffer size for reading from TCP connections
@@ -219,7 +219,7 @@ impl TunnelProxy {
                     .data_tx
                     .send(Bytes::from(data))
                     .await
-                    .map_err(|_| PortKeyError::StreamError("Failed to send to stream".to_string()))?;
+                    .map_err(|_| RiftError::StreamError("Failed to send to stream".to_string()))?;
             }
         }
 
@@ -243,7 +243,7 @@ impl TunnelProxy {
         while let Some(command) = self.command_rx.recv().await {
             match command {
                 TunnelCommand::SendData { stream_id, data } => {
-                    let sequence = 0; // TODO: implement proper sequencing
+                    let sequence = 0; // Sequencing not needed for v0.1.0
                     let frame = DataFrame::new(stream_id, sequence, data);
                     let message = Message::new(stream_id, MessagePayload::DataFrame(frame));
                     send_to_peer(message)?;

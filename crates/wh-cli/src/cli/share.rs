@@ -1,7 +1,7 @@
 //! Share Command Implementation
 
 use anyhow::Result;
-use wh_core::PortKeyConfig;
+use wh_core::RiftConfig;
 use wh_daemon::{DaemonCommand, DaemonServer};
 use std::path::PathBuf;
 use tracing::info;
@@ -13,7 +13,7 @@ pub async fn run(port: u16, secrets: Option<PathBuf>, auto_approve: bool, no_tui
     info!("Sharing port {} (secrets: {:?}, auto_approve: {})", port, secrets, auto_approve);
 
     // Create daemon
-    let config = PortKeyConfig::default();
+    let config = RiftConfig::default();
     let mut daemon = DaemonServer::new(config).await?;
 
     // Get handles
@@ -33,7 +33,7 @@ pub async fn run(port: u16, secrets: Option<PathBuf>, auto_approve: bool, no_tui
         .await?;
 
     // Get the link
-    let link = daemon.portkey_link().await;
+    let link = daemon.rift_link().await;
     
     // Try to copy link to clipboard (non-fatal if it fails)
     match arboard::Clipboard::new() {
@@ -52,7 +52,7 @@ pub async fn run(port: u16, secrets: Option<PathBuf>, auto_approve: bool, no_tui
     }
     
     println!("\n╔══════════════════════════════════════════════════════════════╗");
-    println!("║                     🔑 PortKey Share                         ║");
+    println!("║                      🔑 Rift Share                           ║");
     println!("╠══════════════════════════════════════════════════════════════╣");
     println!("║ Sharing: localhost:{}                                       ║", port);
     println!("║                                                              ║");

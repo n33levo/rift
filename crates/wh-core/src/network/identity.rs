@@ -5,7 +5,7 @@
 use libp2p::identity::{Keypair, PeerId};
 use std::path::Path;
 
-use crate::error::{PortKeyError, Result};
+use crate::error::{RiftError, Result};
 
 /// Manages the peer identity (keypair and peer ID)
 #[derive(Clone)]
@@ -41,7 +41,7 @@ impl PeerIdentity {
 
         // Try to decode as protobuf-encoded keypair
         let keypair = Keypair::from_protobuf_encoding(&bytes)
-            .map_err(|e| PortKeyError::ConfigError(format!("Invalid keypair file: {}", e)))?;
+            .map_err(|e| RiftError::ConfigError(format!("Invalid keypair file: {}", e)))?;
 
         let peer_id = PeerId::from(keypair.public());
 
@@ -60,7 +60,7 @@ impl PeerIdentity {
         let bytes = self
             .keypair
             .to_protobuf_encoding()
-            .map_err(|e| PortKeyError::ConfigError(format!("Failed to encode keypair: {}", e)))?;
+            .map_err(|e| RiftError::ConfigError(format!("Failed to encode keypair: {}", e)))?;
 
         std::fs::write(path, bytes)?;
 
@@ -89,20 +89,20 @@ impl PeerIdentity {
         self.peer_id.to_string()
     }
 
-    /// Generate a PortKey link for sharing
-    pub fn to_portkey_link(&self) -> String {
-        format!("pk://{}", self.peer_id)
+    /// Generate a Rift link for sharing
+    pub fn to_rift_link(&self) -> String {
+        format!("rift://{}", self.peer_id)
     }
 
-    /// Parse a peer ID from a PortKey link
-    pub fn parse_portkey_link(link: &str) -> Result<PeerId> {
+    /// Parse a peer ID from a Rift link
+    pub fn parse_rift_link(link: &str) -> Result<PeerId> {
         let peer_id_str = link
-            .strip_prefix("pk://")
-            .ok_or_else(|| PortKeyError::InvalidPeerId("Link must start with pk://".to_string()))?;
+            .strip_prefix("rift://")
+            .ok_or_else(|| RiftError::InvalidPeerId("Link must start with rift://".to_string()))?;
 
         peer_id_str
             .parse()
-            .map_err(|e| PortKeyError::InvalidPeerId(format!("Invalid peer ID: {}", e)))
+            .map_err(|e| RiftError::InvalidPeerId(format!("Invalid peer ID: {}", e)))
     }
 }
 
@@ -144,13 +144,13 @@ mod tests {
     }
 
     #[test]
-    fn test_portkey_link() {
+    fn test_rift_link() {
         let identity = PeerIdentity::generate();
-        let link = identity.to_portkey_link();
+        let link = identity.to_rift_link();
         
-        assert!(link.starts_with("pk://"));
+        assert!(link.starts_with("rift://"));
         
-        let parsed = PeerIdentity::parse_portkey_link(&link).unwrap();
+        let parsed = PeerIdentity::parse_rift_link(&link).unwrap();
         assert_eq!(*identity.peer_id(), parsed);
     }
 }

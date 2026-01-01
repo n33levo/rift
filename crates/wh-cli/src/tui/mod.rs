@@ -1,4 +1,4 @@
-//! TUI Module for PortKey
+//! TUI Module for Rift
 //!
 //! Provides a ratatui-based terminal UI for monitoring connections and traffic.
 

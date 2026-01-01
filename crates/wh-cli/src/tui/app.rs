@@ -46,7 +46,7 @@ pub struct App {
     #[allow(dead_code)]
     pub local_port: u16,
 
-    /// PortKey link
+    /// Rift link
     pub link: String,
 
     /// Active connections
@@ -94,7 +94,7 @@ impl App {
             connections: Vec::new(),
             bytes_sent: 0,
             bytes_received: 0,
-            logs: vec!["PortKey started...".to_string()],
+            logs: vec!["Rift started...".to_string()],
             should_quit: false,
             status: "Waiting for connections".to_string(),
             secrets_count: 0,
@@ -115,7 +115,7 @@ impl App {
             connections: Vec::new(),
             bytes_sent: 0,
             bytes_received: 0,
-            logs: vec!["PortKey started...".to_string()],
+            logs: vec!["Rift started...".to_string()],
             should_quit: false,
             status: "Connecting...".to_string(),
             secrets_count: 0,

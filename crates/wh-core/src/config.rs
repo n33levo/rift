@@ -1,16 +1,16 @@
-//! Configuration management for PortKey
+//! Configuration management for Rift
 //!
-//! Handles loading and saving of PortKey configuration including
+//! Handles loading and saving of Rift configuration including
 //! identity keys, known peers, and user preferences.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::error::{PortKeyError, Result};
+use crate::error::{RiftError, Result};
 
-/// Main configuration for PortKey
+/// Main configuration for Rift
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PortKeyConfig {
+pub struct RiftConfig {
     /// Path to the identity keypair file
     pub identity_path: PathBuf,
 
@@ -39,7 +39,7 @@ pub struct PortKeyConfig {
     pub debug: bool,
 }
 
-impl Default for PortKeyConfig {
+impl Default for RiftConfig {
     fn default() -> Self {
         Self {
             identity_path: Self::default_identity_path(),
@@ -55,7 +55,7 @@ impl Default for PortKeyConfig {
     }
 }
 
-impl PortKeyConfig {
+impl RiftConfig {
     /// Creates a new configuration with default values
     pub fn new() -> Self {
         Self::default()
@@ -64,13 +64,13 @@ impl PortKeyConfig {
     /// Loads configuration from a file
     pub fn load(path: &PathBuf) -> Result<Self> {
         let contents = std::fs::read_to_string(path)?;
-        toml::from_str(&contents).map_err(|e| PortKeyError::ConfigError(e.to_string()))
+        toml::from_str(&contents).map_err(|e| RiftError::ConfigError(e.to_string()))
     }
 
     /// Saves configuration to a file
     pub fn save(&self, path: &PathBuf) -> Result<()> {
         let contents = toml::to_string_pretty(self)
-            .map_err(|e| PortKeyError::ConfigError(e.to_string()))?;
+            .map_err(|e| RiftError::ConfigError(e.to_string()))?;
         
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -84,7 +84,7 @@ impl PortKeyConfig {
     pub fn default_config_dir() -> PathBuf {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("portkey")
+            .join("rift")
     }
 
     /// Returns the default configuration file path
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let config = PortKeyConfig::default();
+        let config = RiftConfig::default();
         assert_eq!(config.listen_port, 0);
         assert!(config.enable_mdns);
         assert!(config.enable_relay);
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_builder_pattern() {
-        let config = PortKeyConfig::new()
+        let config = RiftConfig::new()
             .with_listen_port(8080)
             .with_mdns(false)
             .with_debug(true);

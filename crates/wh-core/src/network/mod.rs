@@ -1,4 +1,4 @@
-//! P2P Network Module for PortKey
+//! P2P Network Module for Rift
 //!
 //! Implements the libp2p swarm with QUIC transport, peer discovery,
 //! and NAT hole punching capabilities.
@@ -7,7 +7,7 @@ pub mod behaviour;
 pub mod identity;
 pub mod swarm;
 
-pub use behaviour::{PortKeyBehaviour, PortKeyBehaviourEvent, TUNNEL_PROTOCOL, SECRETS_PROTOCOL};
+pub use behaviour::{RiftBehaviour, RiftBehaviourEvent, TUNNEL_PROTOCOL, SECRETS_PROTOCOL};
 pub use identity::PeerIdentity;
 pub use swarm::{
     NetworkEvent, PeerNetwork, PeerInfo, 

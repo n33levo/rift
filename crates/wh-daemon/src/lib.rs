@@ -1,4 +1,4 @@
-//! PortKey Daemon
+//! Rift Daemon
 //!
 //! Background service that manages P2P connections, tunnels, and secrets sharing.
 

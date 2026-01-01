@@ -1,4 +1,4 @@
-//! Cryptographic utilities for PortKey
+//! Cryptographic utilities for Rift
 //!
 //! Provides X25519 key exchange and AES-GCM encryption for secrets sharing.
 
@@ -11,7 +11,7 @@ use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
-use crate::error::{PortKeyError, Result};
+use crate::error::{RiftError, Result};
 
 /// Size of the AES-GCM nonce
 pub const NONCE_SIZE: usize = 12;
@@ -105,7 +105,7 @@ impl SecretsCipher {
     /// Encrypt data using AES-256-GCM with a shared secret
     pub fn encrypt(shared_secret: &[u8; 32], plaintext: &[u8]) -> Result<(Vec<u8>, [u8; NONCE_SIZE])> {
         let cipher = Aes256Gcm::new_from_slice(shared_secret)
-            .map_err(|e| PortKeyError::EncryptionFailed(e.to_string()))?;
+            .map_err(|e| RiftError::EncryptionFailed(e.to_string()))?;
 
         // Generate random nonce
         let mut nonce_bytes = [0u8; NONCE_SIZE];
@@ -114,7 +114,7 @@ impl SecretsCipher {
 
         let ciphertext = cipher
             .encrypt(nonce, plaintext)
-            .map_err(|e| PortKeyError::EncryptionFailed(e.to_string()))?;
+            .map_err(|e| RiftError::EncryptionFailed(e.to_string()))?;
 
         Ok((ciphertext, nonce_bytes))
     }
@@ -126,13 +126,13 @@ impl SecretsCipher {
         nonce: &[u8; NONCE_SIZE],
     ) -> Result<Vec<u8>> {
         let cipher = Aes256Gcm::new_from_slice(shared_secret)
-            .map_err(|e| PortKeyError::DecryptionFailed(e.to_string()))?;
+            .map_err(|e| RiftError::DecryptionFailed(e.to_string()))?;
 
         let nonce = Nonce::from_slice(nonce);
 
         let plaintext = cipher
             .decrypt(nonce, ciphertext)
-            .map_err(|e| PortKeyError::DecryptionFailed(e.to_string()))?;
+            .map_err(|e| RiftError::DecryptionFailed(e.to_string()))?;
 
         Ok(plaintext)
     }
@@ -195,7 +195,7 @@ mod tests {
     #[test]
     fn test_encryption_roundtrip() {
         let shared_secret = [42u8; 32];
-        let plaintext = b"Hello, PortKey!";
+        let plaintext = b"Hello, Rift!";
 
         let (ciphertext, nonce) = SecretsCipher::encrypt(&shared_secret, plaintext).unwrap();
         let decrypted = SecretsCipher::decrypt(&shared_secret, &ciphertext, &nonce).unwrap();

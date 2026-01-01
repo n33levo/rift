@@ -1,4 +1,4 @@
-//! Network Behaviour for PortKey
+//! Network Behaviour for Rift
 //!
 //! Combines libp2p protocols for P2P tunneling:
 //! - Identify: Peer info exchange
@@ -17,16 +17,16 @@ use libp2p::{
     StreamProtocol,
 };
 
-/// The protocol identifier for PortKey tunnel streams
-pub const TUNNEL_PROTOCOL: StreamProtocol = StreamProtocol::new("/portkey/tunnel/1.0.0");
+/// The protocol identifier for Rift tunnel streams
+pub const TUNNEL_PROTOCOL: StreamProtocol = StreamProtocol::new("/rift/tunnel/1.0.0");
 
-/// The protocol identifier for PortKey secrets exchange
-pub const SECRETS_PROTOCOL: StreamProtocol = StreamProtocol::new("/portkey/secrets/1.0.0");
+/// The protocol identifier for Rift secrets exchange
+pub const SECRETS_PROTOCOL: StreamProtocol = StreamProtocol::new("/rift/secrets/1.0.0");
 
-/// Combined network behaviour for PortKey
+/// Combined network behaviour for Rift
 #[derive(NetworkBehaviour)]
-#[behaviour(to_swarm = "PortKeyBehaviourEvent")]
-pub struct PortKeyBehaviour {
+#[behaviour(to_swarm = "RiftBehaviourEvent")]
+pub struct RiftBehaviour {
     /// Identify protocol for peer info exchange
     pub identify: identify::Behaviour,
     /// Ping protocol for connection liveness
@@ -41,9 +41,9 @@ pub struct PortKeyBehaviour {
     pub stream: libp2p_stream::Behaviour,
 }
 
-/// Events emitted by the PortKey behaviour
+/// Events emitted by the Rift behaviour
 #[derive(Debug)]
-pub enum PortKeyBehaviourEvent {
+pub enum RiftBehaviourEvent {
     Identify(identify::Event),
     Ping(ping::Event),
     Mdns(mdns::Event),
@@ -53,38 +53,38 @@ pub enum PortKeyBehaviourEvent {
     Stream(()),
 }
 
-impl From<identify::Event> for PortKeyBehaviourEvent {
+impl From<identify::Event> for RiftBehaviourEvent {
     fn from(event: identify::Event) -> Self {
-        PortKeyBehaviourEvent::Identify(event)
+        RiftBehaviourEvent::Identify(event)
     }
 }
 
-impl From<ping::Event> for PortKeyBehaviourEvent {
+impl From<ping::Event> for RiftBehaviourEvent {
     fn from(event: ping::Event) -> Self {
-        PortKeyBehaviourEvent::Ping(event)
+        RiftBehaviourEvent::Ping(event)
     }
 }
 
-impl From<mdns::Event> for PortKeyBehaviourEvent {
+impl From<mdns::Event> for RiftBehaviourEvent {
     fn from(event: mdns::Event) -> Self {
-        PortKeyBehaviourEvent::Mdns(event)
+        RiftBehaviourEvent::Mdns(event)
     }
 }
 
-impl From<relay::client::Event> for PortKeyBehaviourEvent {
+impl From<relay::client::Event> for RiftBehaviourEvent {
     fn from(event: relay::client::Event) -> Self {
-        PortKeyBehaviourEvent::Relay(event)
+        RiftBehaviourEvent::Relay(event)
     }
 }
 
-impl From<dcutr::Event> for PortKeyBehaviourEvent {
+impl From<dcutr::Event> for RiftBehaviourEvent {
     fn from(event: dcutr::Event) -> Self {
-        PortKeyBehaviourEvent::Dcutr(event)
+        RiftBehaviourEvent::Dcutr(event)
     }
 }
 
-impl From<()> for PortKeyBehaviourEvent {
+impl From<()> for RiftBehaviourEvent {
     fn from(_: ()) -> Self {
-        PortKeyBehaviourEvent::Stream(())
+        RiftBehaviourEvent::Stream(())
     }
 }

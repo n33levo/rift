@@ -14,8 +14,8 @@ pub mod error;
 pub mod network;
 pub mod secrets;
 
-pub use config::PortKeyConfig;
-pub use error::{PortKeyError, Result};
+pub use config::RiftConfig;
+pub use error::{RiftError, Result};
 pub use network::{
     NetworkEvent, PeerNetwork, PeerIdentity,
     bridge_stream_to_tcp, open_tunnel_stream,

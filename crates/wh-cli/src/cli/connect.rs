@@ -1,7 +1,7 @@
 //! Connect Command Implementation
 
 use anyhow::Result;
-use wh_core::{PortKeyConfig, PeerId, secrets::{EnvVault, SecretsRequest}};
+use wh_core::{RiftConfig, PeerId, secrets::{EnvVault, SecretsRequest}};
 use wh_daemon::{DaemonCommand, DaemonServer};
 use std::path::PathBuf;
 use tracing::{info, error};
@@ -44,7 +44,7 @@ pub async fn run(
     info!("Connecting to {} port {} (local: {}:{})", peer_link, port, bind_addr, local_port);
 
     // Create daemon
-    let config = PortKeyConfig::default();
+    let config = RiftConfig::default();
     let mut daemon = DaemonServer::new(config).await?;
 
     // Get handles
@@ -73,7 +73,7 @@ pub async fn run(
     }
 
     println!("\n╔══════════════════════════════════════════════════════════════╗");
-    println!("║                    🔗 PortKey Connect                        ║");
+    println!("║                     🔗 Rift Connect                          ║");
     println!("╠══════════════════════════════════════════════════════════════╣");
     println!("║ Connecting to: {}  ║", format!("{:<42}", peer_link));
     println!("║ Remote port: {}                                              ║", port);
@@ -104,18 +104,18 @@ async fn request_secrets_from_peer(
     info!("Requesting secrets from peer");
     
     // Create a temporary network just for secrets request
-    let config = PortKeyConfig::default();
+    let config = RiftConfig::default();
     let mut network = wh_core::PeerNetwork::new(config).await?;
     
     // Parse peer ID from link
-    let peer_id: PeerId = PeerIdentity::parse_portkey_link(peer_link)?;
+    let peer_id: PeerId = PeerIdentity::parse_rift_link(peer_link)?;
     
     // Connect to peer
     network.connect(peer_link).await?;
     info!("Connected to peer for secrets request");
     
     // Create our vault to get our public key
-    let vault = EnvVault::from_file(".env.portkey.tmp")
+    let vault = EnvVault::from_file(".env.rift.tmp")
         .unwrap_or_else(|_| {
             // If no file exists, create a new vault with identity
             let keypair = EnvVault::load_or_create_identity()

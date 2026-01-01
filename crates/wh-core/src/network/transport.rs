@@ -1,4 +1,4 @@
-//! Transport Configuration for PortKey
+//! Transport Configuration for Rift
 //!
 //! Configures the QUIC transport with noise encryption for secure P2P communication.
 
@@ -16,7 +16,7 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default idle connection timeout
 pub const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Build the QUIC transport for PortKey
+/// Build the QUIC transport for Rift
 pub fn build_quic_transport(
     keypair: &Keypair,
 ) -> Result<quic::tokio::Transport> {

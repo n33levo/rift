@@ -9,7 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-use crate::error::{PortKeyError, Result};
+use crate::error::{RiftError, Result};
 
 /// Statistics for the proxy
 #[derive(Debug, Default)]
@@ -136,7 +136,7 @@ impl ProxyListener {
     pub async fn start(&mut self) -> Result<SocketAddr> {
         let addr = format!("127.0.0.1:{}", self.port);
         let listener = TcpListener::bind(&addr).await.map_err(|e| {
-            PortKeyError::PortBindFailed {
+            RiftError::PortBindFailed {
                 port: self.port,
                 reason: e.to_string(),
             }
@@ -157,7 +157,7 @@ impl ProxyListener {
         let listener = self
             .listener
             .take()
-            .ok_or_else(|| PortKeyError::PortBindFailed {
+            .ok_or_else(|| RiftError::PortBindFailed {
                 port: self.port,
                 reason: "Listener not started".to_string(),
             })?;

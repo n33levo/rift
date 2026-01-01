@@ -89,15 +89,15 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     
     // Step 2: Start Peer A (Sharer) - shares port 3000
     println!("[Setup] Starting Peer A (sharer)");
-    let peer_a_config = wh_core::PortKeyConfig {
+    let peer_a_config = wh_core::RiftConfig {
         listen_port: 9001,
-        identity_path: std::path::PathBuf::from("/tmp/portkey_test_peer_a"),
+        identity_path: std::path::PathBuf::from("/tmp/rift_test_peer_a"),
         ..Default::default()
     };
     
     let mut peer_a_network = wh_core::PeerNetwork::new(peer_a_config).await?;
     peer_a_network.start_listening().await?;
-    let peer_a_link = peer_a_network.portkey_link();
+    let peer_a_link = peer_a_network.rift_link();
     
     println!("[Peer A] Link: {}", peer_a_link);
     println!("[Peer A] Started listening");
@@ -129,9 +129,9 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     
     // Step 3: Start Peer B (Connector) - connects to Peer A, listens on 8080
     println!("[Setup] Starting Peer B (connector)");
-    let peer_b_config = wh_core::PortKeyConfig {
+    let peer_b_config = wh_core::RiftConfig {
         listen_port: 9002,
-        identity_path: std::path::PathBuf::from("/tmp/portkey_test_peer_b"),
+        identity_path: std::path::PathBuf::from("/tmp/rift_test_peer_b"),
         ..Default::default()
     };
     
@@ -139,7 +139,7 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     peer_b_network.start_listening().await?;
     
     // Parse Peer A's ID from the link for later use
-    let peer_a_id = wh_core::network::PeerIdentity::parse_portkey_link(&peer_a_link)?;
+    let peer_a_id = wh_core::network::PeerIdentity::parse_rift_link(&peer_a_link)?;
     
     // Channel to signal when Peer B has connected to Peer A
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();

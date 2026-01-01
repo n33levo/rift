@@ -1,4 +1,4 @@
-//! Swarm Management for PortKey
+//! Swarm Management for Rift
 //!
 //! High-level interface for managing the libp2p swarm and raw stream tunneling.
 
@@ -17,10 +17,10 @@ use tokio::sync::{mpsc, RwLock};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing::{debug, error, info, warn};
 
-use super::behaviour::{PortKeyBehaviour, PortKeyBehaviourEvent, TUNNEL_PROTOCOL, SECRETS_PROTOCOL};
+use super::behaviour::{RiftBehaviour, RiftBehaviourEvent, TUNNEL_PROTOCOL, SECRETS_PROTOCOL};
 use super::identity::PeerIdentity;
-use crate::config::PortKeyConfig;
-use crate::error::{PortKeyError, Result};
+use crate::config::RiftConfig;
+use crate::error::{RiftError, Result};
 
 /// Events emitted by the peer network
 #[derive(Debug, Clone)]
@@ -50,9 +50,9 @@ pub struct PeerNetwork {
     /// Our identity
     identity: PeerIdentity,
     /// Configuration
-    config: PortKeyConfig,
+    config: RiftConfig,
     /// The libp2p swarm
-    swarm: Swarm<PortKeyBehaviour>,
+    swarm: Swarm<RiftBehaviour>,
     /// Known peers
     peers: Arc<RwLock<HashMap<PeerId, PeerInfo>>>,
     /// Event sender
@@ -65,7 +65,7 @@ pub struct PeerNetwork {
 
 impl PeerNetwork {
     /// Create a new peer network
-    pub async fn new(config: PortKeyConfig) -> Result<Self> {
+    pub async fn new(config: RiftConfig) -> Result<Self> {
         let identity = PeerIdentity::load_or_generate(&config.identity_path)?;
         let local_peer_id = *identity.peer_id();
         let keypair = identity.keypair().clone();
@@ -77,11 +77,11 @@ impl PeerNetwork {
             .with_tokio()
             .with_quic()
             .with_relay_client(libp2p::noise::Config::new, libp2p::yamux::Config::default)
-            .map_err(|e| PortKeyError::NetworkInitialization(e.to_string()))?
+            .map_err(|e| RiftError::NetworkInitialization(e.to_string()))?
             .with_behaviour(|key, relay| {
                 let identify = identify::Behaviour::new(
-                    identify::Config::new("/portkey/id/1.0.0".to_string(), key.public())
-                        .with_agent_version(format!("portkey/{}", env!("CARGO_PKG_VERSION")))
+                    identify::Config::new("/rift/id/1.0.0".to_string(), key.public())
+                        .with_agent_version(format!("rift/{}", env!("CARGO_PKG_VERSION")))
                         .with_push_listen_addr_updates(true),
                 );
 
@@ -95,7 +95,7 @@ impl PeerNetwork {
                 let dcutr = libp2p::dcutr::Behaviour::new(local_peer_id);
                 let stream = stream::Behaviour::new();
 
-                Ok(PortKeyBehaviour {
+                Ok(RiftBehaviour {
                     identify,
                     ping,
                     mdns,
@@ -104,7 +104,7 @@ impl PeerNetwork {
                     stream,
                 })
             })
-            .map_err(|e| PortKeyError::NetworkInitialization(e.to_string()))?
+            .map_err(|e| RiftError::NetworkInitialization(e.to_string()))?
             .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(60)))
             .build();
 
@@ -126,9 +126,9 @@ impl PeerNetwork {
         self.identity.peer_id()
     }
 
-    /// Get our PortKey link
-    pub fn portkey_link(&self) -> String {
-        self.identity.to_portkey_link()
+    /// Get our Rift link
+    pub fn rift_link(&self) -> String {
+        self.identity.to_rift_link()
     }
 
     /// Take the event receiver
@@ -166,11 +166,11 @@ impl PeerNetwork {
     pub async fn start_listening(&mut self) -> Result<Vec<Multiaddr>> {
         let listen_addr: Multiaddr = format!("/ip4/0.0.0.0/udp/{}/quic-v1", self.config.listen_port)
             .parse()
-            .map_err(|e| PortKeyError::NetworkInitialization(format!("Invalid address: {}", e)))?;
+            .map_err(|e| RiftError::NetworkInitialization(format!("Invalid address: {}", e)))?;
 
         self.swarm
             .listen_on(listen_addr)
-            .map_err(|e| PortKeyError::NetworkInitialization(e.to_string()))?;
+            .map_err(|e| RiftError::NetworkInitialization(e.to_string()))?;
 
         // Also try IPv6
         if let Ok(addr) = format!("/ip6/::/udp/{}/quic-v1", self.config.listen_port).parse() {
@@ -181,9 +181,9 @@ impl PeerNetwork {
         Ok(self.swarm.listeners().cloned().collect())
     }
 
-    /// Connect to a peer by their PortKey link
+    /// Connect to a peer by their Rift link
     pub async fn connect(&mut self, link: &str) -> Result<PeerId> {
-        let peer_id = PeerIdentity::parse_portkey_link(link)?;
+        let peer_id = PeerIdentity::parse_rift_link(link)?;
         self.dial_peer(peer_id).await?;
         Ok(peer_id)
     }
@@ -192,7 +192,7 @@ impl PeerNetwork {
     pub async fn dial_peer(&mut self, peer_id: PeerId) -> Result<()> {
         self.swarm
             .dial(peer_id)
-            .map_err(|e| PortKeyError::DialError(e.to_string()))?;
+            .map_err(|e| RiftError::DialError(e.to_string()))?;
         Ok(())
     }
 
@@ -203,7 +203,7 @@ impl PeerNetwork {
 
     /// Run the network event loop - call this in a spawned task
     pub async fn run(&mut self) -> Result<()> {
-        info!("Starting PortKey network...");
+        info!("Starting Rift network...");
 
         while self.running {
             if let Some(event) = self.swarm.next().await {
@@ -226,7 +226,7 @@ impl PeerNetwork {
         }
     }
 
-    async fn handle_swarm_event(&mut self, event: SwarmEvent<PortKeyBehaviourEvent>) -> Result<()> {
+    async fn handle_swarm_event(&mut self, event: SwarmEvent<RiftBehaviourEvent>) -> Result<()> {
         match event {
             SwarmEvent::NewListenAddr { address, .. } => {
                 info!("Listening on {}", address);
@@ -266,16 +266,16 @@ impl PeerNetwork {
         Ok(())
     }
 
-    async fn handle_behaviour_event(&mut self, event: PortKeyBehaviourEvent) -> Result<()> {
+    async fn handle_behaviour_event(&mut self, event: RiftBehaviourEvent) -> Result<()> {
         match event {
-            PortKeyBehaviourEvent::Mdns(mdns::Event::Discovered(peers)) => {
+            RiftBehaviourEvent::Mdns(mdns::Event::Discovered(peers)) => {
                 for (peer_id, addr) in peers {
                     debug!("Discovered peer via mDNS: {} at {}", peer_id, addr);
                     self.swarm.add_peer_address(peer_id, addr);
                 }
             }
 
-            PortKeyBehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+            RiftBehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
                 debug!("Identified peer {}: {:?}", peer_id, info.agent_version);
                 for addr in &info.listen_addrs {
                     self.swarm.add_peer_address(peer_id, addr.clone());
@@ -285,7 +285,7 @@ impl PeerNetwork {
                 }
             }
 
-            PortKeyBehaviourEvent::Dcutr(libp2p::dcutr::Event { remote_peer_id, result }) => {
+            RiftBehaviourEvent::Dcutr(libp2p::dcutr::Event { remote_peer_id, result }) => {
                 match result {
                     Ok(_) => {
                         info!("Hole punch succeeded with {}", remote_peer_id);
@@ -298,7 +298,7 @@ impl PeerNetwork {
             }
 
             // Stream events are handled separately via incoming_streams
-            PortKeyBehaviourEvent::Stream(_) => {}
+            RiftBehaviourEvent::Stream(_) => {}
 
             _ => {}
         }
@@ -308,7 +308,7 @@ impl PeerNetwork {
 
     /// Shutdown the network
     pub async fn shutdown(&mut self) {
-        info!("Shutting down PortKey network...");
+        info!("Shutting down Rift network...");
         self.running = false;
     }
 }
@@ -321,7 +321,7 @@ pub async fn open_tunnel_stream(
     control
         .open_stream(peer_id, TUNNEL_PROTOCOL)
         .await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to open stream: {:?}", e)))
+        .map_err(|e| RiftError::StreamError(format!("Failed to open stream: {:?}", e)))
 }
 
 /// Bridge a QUIC stream to a local TCP connection
@@ -329,7 +329,7 @@ pub async fn open_tunnel_stream(
 pub async fn bridge_stream_to_tcp(stream: Stream, target_port: u16) -> Result<()> {
     let tcp = TcpStream::connect(format!("127.0.0.1:{}", target_port))
         .await
-        .map_err(|e| PortKeyError::ProxyError(format!("Failed to connect to local port {}: {}", target_port, e)))?;
+        .map_err(|e| RiftError::ProxyError(format!("Failed to connect to local port {}: {}", target_port, e)))?;
 
     // Convert futures AsyncRead/Write to tokio AsyncRead/Write using compat
     let stream = stream.compat();
@@ -369,9 +369,9 @@ pub async fn send_secrets<T: serde::Serialize, W: tokio::io::AsyncWrite + Unpin>
     let len = bytes.len() as u32;
     
     writer.write_all(&len.to_be_bytes()).await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to write length: {}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to write length: {}", e)))?;
     writer.write_all(&bytes).await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to write data: {}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to write data: {}", e)))?;
     
     Ok(())
 }
@@ -384,19 +384,19 @@ pub async fn receive_secrets<T: serde::de::DeserializeOwned, R: tokio::io::Async
     
     let mut len_buf = [0u8; 4];
     reader.read_exact(&mut len_buf).await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to read length: {}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to read length: {}", e)))?;
     
     let len = u32::from_be_bytes(len_buf) as usize;
     if len > 10 * 1024 * 1024 {
-        return Err(PortKeyError::StreamError("Message too large".to_string()));
+        return Err(RiftError::StreamError("Message too large".to_string()));
     }
     
     let mut buf = vec![0u8; len];
     reader.read_exact(&mut buf).await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to read data: {}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to read data: {}", e)))?;
     
     bincode::deserialize(&buf)
-        .map_err(|e| PortKeyError::Serialization(format!("Failed to deserialize: {}", e)))
+        .map_err(|e| RiftError::Serialization(format!("Failed to deserialize: {}", e)))
 }
 
 /// Send secrets to a peer over a dedicated stream
@@ -412,17 +412,17 @@ pub async fn send_secrets_to_peer(
     let stream = control
         .open_stream(peer_id, SECRETS_PROTOCOL)
         .await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to open secrets stream: {:?}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to open secrets stream: {:?}", e)))?;
     
     // Serialize and send
     let data = bincode::serialize(secrets_response)
-        .map_err(|e| PortKeyError::Serialization(format!("Failed to serialize secrets: {}", e)))?;
+        .map_err(|e| RiftError::Serialization(format!("Failed to serialize secrets: {}", e)))?;
     
     let mut stream = stream.compat();
     stream.write_all(&data).await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to send secrets: {}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to send secrets: {}", e)))?;
     stream.shutdown().await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to close secrets stream: {}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to close secrets stream: {}", e)))?;
     
     info!("Sent {} bytes of encrypted secrets to {}", data.len(), peer_id);
     Ok(())
@@ -436,10 +436,10 @@ pub async fn receive_secrets_from_stream(stream: Stream) -> Result<crate::secret
     let mut data = Vec::new();
     
     stream.read_to_end(&mut data).await
-        .map_err(|e| PortKeyError::StreamError(format!("Failed to read secrets: {}", e)))?;
+        .map_err(|e| RiftError::StreamError(format!("Failed to read secrets: {}", e)))?;
     
     let response: crate::secrets::SecretsResponse = bincode::deserialize(&data)
-        .map_err(|e| PortKeyError::Serialization(format!("Failed to deserialize secrets: {}", e)))?;
+        .map_err(|e| RiftError::Serialization(format!("Failed to deserialize secrets: {}", e)))?;
     
     info!("Received {} bytes of encrypted secrets", data.len());
     Ok(response)

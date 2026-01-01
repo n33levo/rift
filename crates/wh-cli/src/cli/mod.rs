@@ -9,7 +9,7 @@ pub mod share;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-/// PortKey - Local-First P2P Tunneling Tool
+/// Rift - Local-First P2P Tunneling Tool
 ///
 /// Share local ports securely with peers over a QUIC-based P2P network.
 /// No central server required.
@@ -56,7 +56,7 @@ pub enum Commands {
     /// Connects to a peer's shared port and creates a local proxy.
     #[command(visible_alias = "c")]
     Connect {
-        /// The PortKey link (pk://<PEER_ID>) or peer ID to connect to
+        /// The Rift link (rift://<PEER_ID>) or peer ID to connect to
         #[arg(value_name = "LINK")]
         link: String,
 
@@ -79,7 +79,7 @@ pub enum Commands {
 
     /// Show node information
     ///
-    /// Displays the local peer ID and PortKey link.
+    /// Displays the local peer ID and Rift link.
     #[command(visible_alias = "i")]
     Info,
 }

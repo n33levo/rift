@@ -1,8 +1,8 @@
 <div align="center">
 
-# ⚡ Rift
+# ⚡ Rift: Pairing-Grade Localhost Tunneling
 
-### The Vibe-Coder's Tunnel • Local-First • P2P • Encrypted
+### **AirDrop for Localhost** — share ports *and* context (secrets/config) peer-to-peer.
 
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -10,15 +10,91 @@
 [![Built with libp2p](https://img.shields.io/badge/built%20with-libp2p-blueviolet.svg)](https://libp2p.io)
 [![QUIC Protocol](https://img.shields.io/badge/protocol-QUIC-success.svg)](https://www.chromium.org/quic)
 
-[Quick Start](#-quick-start) • [Features](#-why-rift) • [Architecture](#-how-it-works) • [Docs](#-documentation)
+[Quick Start](#-quick-start) • [Security](#-security--trust-read-this-first) • [Features](#-features) • [Architecture](#-how-it-works)
 
 </div>
+
+Your service appears on *your teammate's* `localhost:8080`, not a public URL. No relay servers, no surprise visitors, no copy-pasting `.env` files in Slack.
+
+**Not meant for public hosting** — use ngrok or Cloudflare Tunnel for that. Rift is for **pairing and debugging with teammates** you trust.
+
+---
+
+## Why Rift?
+
+**Local-to-local port mapping:**  
+When you share port 3000, your peer accesses it on *their own* `localhost:3000` — not via a public URL. It's like they're running your service locally.
+
+**Config parity in seconds:**  
+Optionally sync environment variables or config files so your peer connects with the right credentials. No more "can you send me your `.env`?" in Slack.
+
+**Explicit trust:**  
+Every inbound connection requires host approval. No magic links that bypass consent.
+
+---
+
+## 🔒 Security & Trust (Read This First)
+
+- 🔒 **No magic links:** Every inbound connection requires explicit host approval (Y/N prompt). You control who connects.
+- 🔒 **Encrypted by default:** All tunnel traffic and secret payloads use the **Noise Protocol** with **ChaCha20-Poly1305** encryption.
+- 🔒 **Peer-to-peer:** Direct QUIC transport between peers. No central server sees your data.
+- 🔒 **Secrets sharing is opt-in:** Rift never silently uploads secrets. The host explicitly chooses what to share (`--secrets .env`), and the peer must request them (`--request-secrets`).
+- 🔒 **Host controls exposure:** You decide which ports to share and which secrets (if any) to include.
+
+**Trust model:** Rift assumes you're pairing with teammates you trust. It's not a public hosting platform with access controls — it's a direct peer-to-peer tool.
+
+---
+
+## ✨ Features
+
+### Pairing Workflow
+- **Connection approval required:** Host gets a Y/N prompt before accepting connections
+- **Instant clipboard sharing:** `rift://` link copied automatically
+- **Local-first binding:** Client binds to `127.0.0.1` by default (add `--public` only if needed)
+- **TUI dashboard:** Real-time connection status, traffic graphs, event logs
+
+### Networking
+- **QUIC transport:** Fast, multiplexed streams (same protocol as HTTP/3)
+- **Peer discovery:** mDNS for local networks, relay for remote peers
+- **NAT hole punching:** DCUtR establishes direct P2P connections
+- **Noise Protocol encryption:** End-to-end security using Noise_XX with X25519 keys
+
+### Secrets / EnvVault (Optional)
+- **Encrypted secret sharing:** X25519 (ECDH) + AES-256-GCM for environment variables
+- **Explicit opt-in:** Host uses `--secrets .env`, peer uses `--request-secrets`
+- **Auditable:** Both sides see exactly what's being shared
+
+---
+
+## Example: Backend ↔ Frontend Pairing in Seconds
+
+**Scenario:** Backend dev (Peer A) needs to test with frontend dev (Peer B). Backend runs on port 3000 and needs specific API keys.
+
+**Peer A (Backend developer):**
+```bash
+# Share port 3000 with selected environment variables
+rift share 3000 --secrets .env
+
+# Rift generates a link and copies to clipboard
+# Link: rift://12D3KooWLYABwLi4LYBgfP35fanr3Mqh1aczuS7by7171AHzAaXs
+```
+
+**Peer B (Frontend developer):**
+```bash
+# Connect using the link, request secrets, map to local port 3000
+rift connect rift://12D3KooWLYABwLi4LYBgfP35fanr3Mqh1aczuS7by7171AHzAaXs --request-secrets
+
+# Peer A sees approval prompt and presses 'Y'
+# Peer B's terminal shows:
+# ✅ Tunnel established at http://127.0.0.1:3000
+# 🔐 Secrets received and ready
+```
+
+**Result:** Peer B can now hit `localhost:3000` and the traffic flows to Peer A's backend. Secrets are injected into the environment automatically. Debugging starts immediately.
 
 ---
 
 ## 🎬 See It In Action
-
-### Terminal Demo
 
 **Peer A (Share a port):**
 ```bash
@@ -87,30 +163,6 @@ sequenceDiagram
         RiftB-->>DevB: HTTP Response
     end
 ```
-
----
-
-## 🔥 Why Rift?
-
-Stop paying for what should be free. Stop exposing your dev server to the entire internet. Stop manually syncing `.env` files.
-
-|  | **Rift ⚡** | Ngrok ☁️ | LocalTunnel 🚇 |
-|:---|:---:|:---:|:---:|
-| **Latency** | P2P Direct | Relay (Slow) | Relay (Slow) |
-| **Security** | Connection Approval Required | Public URL | Public URL |
-| **Secrets Sharing** | Built-in EnvVault | Manual | Manual |
-| **Cost** | Free Forever | Paid Plans | Free |
-| **Privacy** | Zero tracking | Logged | Unknown |
-| **Infrastructure** | None needed | Centralized servers | Centralized servers |
-
-### ✨ What Makes Rift Different?
-
-- **🔐 Connection Approval**: No more surprise visitors. You approve every incoming connection with a keypress.
-- **📋 Instant Share**: Link copied to clipboard automatically. Paste and go.
-- **🔑 Secrets Vault**: Share environment variables securely with end-to-end encryption (X25519 + AES-256-GCM).
-- **🌐 Localhost-First**: Binds to `127.0.0.1` by default. Add `--public` only when you mean it.
-- **⚡ QUIC Speed**: Built on the same protocol as HTTP/3. Fast, reliable, multiplexed.
-- **🎨 Cyberpunk TUI**: Real-time traffic graphs, connection status, and event logs in a gorgeous terminal UI.
 
 ---
 

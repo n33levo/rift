@@ -320,7 +320,7 @@ fn draw_help(f: &mut Frame) {
 
     let help_text = vec![
         Line::from(""),
-        Line::from(Span::styled("PORTKEY CONTROLS", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled("RIFT CONTROLS", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))),
         Line::from(""),
         Line::from(vec![
             Span::styled("  q  ", Style::default().fg(Color::Cyan)),
@@ -337,7 +337,7 @@ fn draw_help(f: &mut Frame) {
         Line::from(""),
         Line::from(Span::styled("ABOUT", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))),
         Line::from(""),
-        Line::from("PortKey is a local-first P2P tunneling tool."),
+        Line::from("Rift is a local-first P2P tunneling tool."),
         Line::from("Share ports securely over QUIC without a relay."),
         Line::from(""),
         Line::from(Span::styled("Press [h] to close", Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC))),

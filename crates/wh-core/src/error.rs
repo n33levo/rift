@@ -1,15 +1,15 @@
-//! Error types for PortKey
+//! Error types for Rift
 //!
 //! Provides a unified error handling strategy using thiserror.
 
 use thiserror::Error;
 
-/// Result type alias for PortKey operations
-pub type Result<T> = std::result::Result<T, PortKeyError>;
+/// Result type alias for Rift operations
+pub type Result<T> = std::result::Result<T, RiftError>;
 
-/// Unified error type for all PortKey operations
+/// Unified error type for all Rift operations
 #[derive(Error, Debug)]
-pub enum PortKeyError {
+pub enum RiftError {
     // ─────────────────────────────────────────────────────────────
     // Network Errors
     // ─────────────────────────────────────────────────────────────
@@ -95,26 +95,26 @@ pub enum PortKeyError {
     Serialization(String),
 }
 
-impl From<libp2p::noise::Error> for PortKeyError {
+impl From<libp2p::noise::Error> for RiftError {
     fn from(err: libp2p::noise::Error) -> Self {
-        PortKeyError::EncryptionFailed(err.to_string())
+        RiftError::EncryptionFailed(err.to_string())
     }
 }
 
-impl From<libp2p::TransportError<std::io::Error>> for PortKeyError {
+impl From<libp2p::TransportError<std::io::Error>> for RiftError {
     fn from(err: libp2p::TransportError<std::io::Error>) -> Self {
-        PortKeyError::TransportError(err.to_string())
+        RiftError::TransportError(err.to_string())
     }
 }
 
-impl From<serde_json::Error> for PortKeyError {
+impl From<serde_json::Error> for RiftError {
     fn from(err: serde_json::Error) -> Self {
-        PortKeyError::Serialization(err.to_string())
+        RiftError::Serialization(err.to_string())
     }
 }
 
-impl From<bincode::Error> for PortKeyError {
+impl From<bincode::Error> for RiftError {
     fn from(err: bincode::Error) -> Self {
-        PortKeyError::Serialization(err.to_string())
+        RiftError::Serialization(err.to_string())
     }
 }

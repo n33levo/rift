@@ -38,7 +38,7 @@ async fn test_bridge_function_signature() {
     let _ = wh_core::open_tunnel_stream;
     
     // Verify PeerNetwork can be constructed (will fail without proper setup, that's OK)
-    let config = wh_core::PortKeyConfig {
+    let config = wh_core::RiftConfig {
         listen_port: 0,
         identity_path: std::env::temp_dir().join("test_peer"),
         ..Default::default()
@@ -57,6 +57,6 @@ async fn test_bridge_function_signature() {
 /// Test that the config can be created with defaults
 #[test]
 fn test_config_creation() {
-    let config = wh_core::PortKeyConfig::default();
+    let config = wh_core::RiftConfig::default();
     assert_eq!(config.listen_port, 0);
 }

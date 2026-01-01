@@ -1,4 +1,4 @@
-//! TCP Proxy Module for PortKey
+//! TCP Proxy Module for Rift
 //!
 //! Handles bidirectional proxying between local TCP connections
 //! and QUIC streams over the P2P network.
