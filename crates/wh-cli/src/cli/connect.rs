@@ -17,11 +17,14 @@ pub async fn run(
     public: bool,
     no_tui: bool,
 ) -> Result<()> {
-    // Ensure link has the pk:// prefix
-    let link = if link.starts_with("pk://") {
+    // Ensure link has the rift:// prefix
+    let link = if link.starts_with("rift://") {
         link
+    } else if link.starts_with("pk://") {
+        // Handle old pk:// prefix for backwards compatibility
+        link.replacen("pk://", "rift://", 1)
     } else {
-        format!("pk://{}", link)
+        format!("rift://{}", link)
     };
 
     // Extract port from link if present (format: pk://PEER_ID/PORT)
@@ -86,7 +89,14 @@ pub async fn run(
         // Simple mode - just run the daemon
         daemon.run().await?;
     } else {
-        // Run with TUI
+        // Spawn daemon to run in background (processes network events)
+        tokio::spawn(async move {
+            if let Err(e) = daemon.run().await {
+                error!("Daemon error: {}", e);
+            }
+        });
+        
+        // Run TUI in foreground (receives events from daemon)
         tui::run_connect_tui(peer_link, port, local_port, event_rx, command_tx).await?;
     }
 

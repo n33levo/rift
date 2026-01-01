@@ -46,7 +46,11 @@ impl Default for RiftConfig {
             listen_port: 0,
             enable_mdns: true,
             enable_relay: true,
-            bootstrap_peers: Vec::new(),
+            // Public IPFS relays for testing (use sparingly!)
+            bootstrap_peers: vec![
+                "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN".to_string(),
+                "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa".to_string(),
+            ],
             rendezvous_server: None,
             max_connections: 64,
             connection_timeout_secs: 30,

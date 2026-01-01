@@ -155,7 +155,7 @@ impl DaemonServer {
     pub fn take_event_receiver(&mut self) -> mpsc::Receiver<DaemonEvent> {
         let (new_tx, new_rx) = mpsc::channel(256);
         let old_rx = std::mem::replace(&mut self.event_rx, new_rx);
-        self.event_tx = new_tx;
+        // DON'T replace event_tx - keep sending to the channel we're giving out
         old_rx
     }
 
@@ -251,7 +251,31 @@ impl DaemonServer {
                         }
                         DaemonCommand::Connect { link, port, local_port, bind_addr } => {
                             info!("Connect command received for {} port {}", link, port);
-                            match network.connect(&link).await {
+                            
+                            // Retry connection with backoff for peer discovery
+                            // Give mDNS time to discover the peer (usually takes 100-200ms)
+                            let mut retry_count = 0;
+                            let max_retries = 20;
+                            let retry_delay = tokio::time::Duration::from_millis(250);
+                            
+                            let connection_result = loop {
+                                // Poll network to process mDNS events
+                                let _ = network.poll_once().await;
+                                
+                                match network.connect(&link).await {
+                                    Ok(peer_id) => break Ok(peer_id),
+                                    Err(e) if retry_count < max_retries => {
+                                        if retry_count == 0 {
+                                            info!("Waiting for peer discovery...");
+                                        }
+                                        retry_count += 1;
+                                        tokio::time::sleep(retry_delay).await;
+                                    }
+                                    Err(e) => break Err(e),
+                                }
+                            };
+                            
+                            match connection_result {
                                 Ok(peer_id) => {
                                     info!("Connected to peer {}", peer_id);
                                     // Start local TCP listener

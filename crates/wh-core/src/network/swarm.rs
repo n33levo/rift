@@ -110,15 +110,25 @@ impl PeerNetwork {
 
         let (event_tx, event_rx) = mpsc::channel(256);
 
-        Ok(Self {
+        let mut network = Self {
             identity,
-            config,
+            config: config.clone(),
             swarm,
             peers: Arc::new(RwLock::new(HashMap::new())),
             event_tx,
             event_rx: Some(event_rx),
             running: false,
-        })
+        };
+
+        // Dial bootstrap peers for relay/DHT connectivity
+        for peer_addr in &config.bootstrap_peers {
+            if let Ok(addr) = peer_addr.parse::<Multiaddr>() {
+                info!("Dialing bootstrap peer: {}", addr);
+                let _ = network.swarm.dial(addr);
+            }
+        }
+
+        Ok(network)
     }
 
     /// Get our peer ID

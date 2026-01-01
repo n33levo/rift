@@ -4,7 +4,7 @@ use anyhow::Result;
 use wh_core::RiftConfig;
 use wh_daemon::{DaemonCommand, DaemonServer};
 use std::path::PathBuf;
-use tracing::info;
+use tracing::{info, error};
 
 use crate::tui;
 
@@ -66,7 +66,14 @@ pub async fn run(port: u16, secrets: Option<PathBuf>, auto_approve: bool, no_tui
         // Simple mode - just run the daemon
         daemon.run().await?;
     } else {
-        // Run with TUI
+        // Spawn daemon to run in background (processes network events)
+        tokio::spawn(async move {
+            if let Err(e) = daemon.run().await {
+                error!("Daemon error: {}", e);
+            }
+        });
+        
+        // Run TUI in foreground (receives events from daemon)
         tui::run_share_tui(port, link, event_rx, command_tx).await?;
     }
 

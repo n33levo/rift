@@ -289,6 +289,8 @@ async fn run_tui(
     mut event_rx: mpsc::Receiver<DaemonEvent>,
     command_tx: mpsc::Sender<DaemonCommand>,
 ) -> Result<()> {
+    use tracing::error;
+    
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -300,41 +302,58 @@ async fn run_tui(
     let tick_rate = Duration::from_millis(100);
     let mut last_tick = Instant::now();
 
-    loop {
+    let result = loop {
         // Draw
-        terminal.draw(|f| ui::draw(f, &app))?;
+        if let Err(e) = terminal.draw(|f| ui::draw(f, &app)) {
+            error!("Draw error: {}", e);
+            break Err(e.into());
+        }
 
         // Handle events with timeout
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
             .unwrap_or_else(|| Duration::from_secs(0));
 
-        // Check for keyboard events
-        if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    if let Some(cmd) = app.handle_key(key.code) {
-                        let _ = command_tx.send(cmd).await;
+        // Check for keyboard events (non-blocking with timeout)
+        match crossterm::event::poll(timeout) {
+            Ok(true) => {
+                if let Ok(Event::Key(key)) = event::read() {
+                    if key.kind == KeyEventKind::Press {
+                        if let Some(cmd) = app.handle_key(key.code) {
+                            let _ = command_tx.send(cmd).await;
+                        }
                     }
                 }
             }
+            Ok(false) => {
+                // No keyboard event, continue
+            }
+            Err(e) => {
+                error!("Poll error: {}", e);
+                break Err(e.into());
+            }
         }
 
-        // Check for daemon events (non-blocking)
-        while let Ok(event) = event_rx.try_recv() {
-            app.handle_event(event);
+        // Check for daemon events (non-blocking) - process ALL pending
+        loop {
+            match event_rx.try_recv() {
+                Ok(event) => {
+                    app.handle_event(event);
+                }
+                Err(_) => break, // No more events
+            }
         }
 
         // Check quit
         if app.should_quit {
-            break;
+            break Ok(());
         }
 
         // Update tick
         if last_tick.elapsed() >= tick_rate {
             last_tick = Instant::now();
         }
-    }
+    };
 
     // Restore terminal
     disable_raw_mode()?;
@@ -345,5 +364,5 @@ async fn run_tui(
     )?;
     terminal.show_cursor()?;
 
-    Ok(())
+    result
 }
