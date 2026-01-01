@@ -158,4 +158,4 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ---
 
-Thank you for making Rift better! 🚀
+Thank you for making Rift better! 

@@ -88,8 +88,6 @@ sequenceDiagram
     end
 ```
 
-> **Want to record a demo?** We've included a `demo.tape` file for [VHS](https://github.com/charmbracelet/vhs). Run `vhs demo.tape` to generate an animated GIF.
-
 ---
 
 ## 🔥 Why Rift?
@@ -348,13 +346,13 @@ Please open an issue or submit a PR.
 
 ---
 
-## 📜 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Built with:
 - [libp2p](https://libp2p.io) - Modular P2P networking stack
