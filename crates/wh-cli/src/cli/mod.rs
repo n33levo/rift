@@ -64,6 +64,10 @@ pub enum Commands {
         #[arg(short, long, value_name = "PORT")]
         local_port: Option<u16>,
 
+        /// Bind to 0.0.0.0 instead of 127.0.0.1 (allows external connections)
+        #[arg(long)]
+        public: bool,
+
         /// Request secrets from the peer
         #[arg(long)]
         request_secrets: bool,

@@ -33,8 +33,8 @@ async fn main() -> Result<()> {
         Commands::Share { port, secrets, auto_approve } => {
             cli::share::run(port, secrets, auto_approve, cli.no_tui).await?;
         }
-        Commands::Connect { link, local_port, request_secrets, save_secrets } => {
-            cli::connect::run(link, local_port, request_secrets, save_secrets, cli.no_tui).await?;
+        Commands::Connect { link, local_port, request_secrets, save_secrets, public } => {
+            cli::connect::run(link, local_port, request_secrets, save_secrets, public, cli.no_tui).await?;
         }
         Commands::Info => {
             cli::info::run().await?;

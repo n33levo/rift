@@ -35,6 +35,22 @@ pub async fn run(port: u16, secrets: Option<PathBuf>, auto_approve: bool, no_tui
     // Get the link
     let link = daemon.portkey_link().await;
     
+    // Try to copy link to clipboard (non-fatal if it fails)
+    match arboard::Clipboard::new() {
+        Ok(mut clipboard) => {
+            if let Err(e) = clipboard.set_text(&link) {
+                // Silently ignore clipboard errors (headless environments)
+                info!("Failed to copy to clipboard: {}", e);
+            } else {
+                println!("📋 Link copied to clipboard!");
+            }
+        }
+        Err(e) => {
+            // Silently ignore if clipboard isn't available
+            info!("Clipboard not available: {}", e);
+        }
+    }
+    
     println!("\n╔══════════════════════════════════════════════════════════════╗");
     println!("║                     🔑 PortKey Share                         ║");
     println!("╠══════════════════════════════════════════════════════════════╣");

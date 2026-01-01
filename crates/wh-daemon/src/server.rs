@@ -72,6 +72,7 @@ pub enum DaemonCommand {
         link: String,
         port: u16,
         local_port: Option<u16>,
+        bind_addr: String,
     },
 
     /// Approve an incoming connection
@@ -248,16 +249,16 @@ impl DaemonServer {
                                 }
                             }
                         }
-                        DaemonCommand::Connect { link, port, local_port } => {
+                        DaemonCommand::Connect { link, port, local_port, bind_addr } => {
                             info!("Connect command received for {} port {}", link, port);
                             match network.connect(&link).await {
                                 Ok(peer_id) => {
                                     info!("Connected to peer {}", peer_id);
                                     // Start local TCP listener
                                     let local = local_port.unwrap_or(port);
-                                    match TcpListener::bind(format!("127.0.0.1:{}", local)).await {
+                                    match TcpListener::bind(format!("{}:{}", bind_addr, local)).await {
                                         Ok(listener) => {
-                                            info!("Local proxy listening on 127.0.0.1:{}", local);
+                                            info!("Local proxy listening on {}:{}", bind_addr, local);
                                             connect_info = Some((peer_id, port, listener));
                                             let _ = event_tx.send(DaemonEvent::TunnelEstablished {
                                                 peer_id: peer_id.to_string(),

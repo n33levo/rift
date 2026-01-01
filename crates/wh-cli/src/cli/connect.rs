@@ -14,6 +14,7 @@ pub async fn run(
     local_port: Option<u16>,
     request_secrets: bool,
     save_secrets: Option<PathBuf>,
+    public: bool,
     no_tui: bool,
 ) -> Result<()> {
     // Ensure link has the pk:// prefix
@@ -38,7 +39,9 @@ pub async fn run(
 
     let local_port = local_port.unwrap_or(port);
 
-    info!("Connecting to {} port {} (local: {})", peer_link, port, local_port);
+    let bind_addr = if public { "0.0.0.0" } else { "127.0.0.1" };
+
+    info!("Connecting to {} port {} (local: {}:{})", peer_link, port, bind_addr, local_port);
 
     // Create daemon
     let config = PortKeyConfig::default();
@@ -57,6 +60,7 @@ pub async fn run(
             link: peer_link.clone(),
             port,
             local_port: Some(local_port),
+            bind_addr: bind_addr.to_string(),
         })
         .await?;
 
@@ -73,9 +77,9 @@ pub async fn run(
     println!("╠══════════════════════════════════════════════════════════════╣");
     println!("║ Connecting to: {}  ║", format!("{:<42}", peer_link));
     println!("║ Remote port: {}                                              ║", port);
-    println!("║ Local port:  {}                                              ║", local_port);
+    println!("║ Local bind:  {}:{}                                      ║", bind_addr, local_port);
     println!("║                                                              ║");
-    println!("║ Access the tunnel at: http://localhost:{}                   ║", local_port);
+    println!("║ Access the tunnel at: http://{}:{}                   ║", bind_addr, local_port);
     println!("╚══════════════════════════════════════════════════════════════╝\n");
 
     if no_tui {
