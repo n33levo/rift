@@ -9,8 +9,8 @@ use tracing::info;
 use crate::tui;
 
 /// Run the share command
-pub async fn run(port: u16, secrets: Option<PathBuf>, no_tui: bool) -> Result<()> {
-    info!("Sharing port {} (secrets: {:?})", port, secrets);
+pub async fn run(port: u16, secrets: Option<PathBuf>, auto_approve: bool, no_tui: bool) -> Result<()> {
+    info!("Sharing port {} (secrets: {:?}, auto_approve: {})", port, secrets, auto_approve);
 
     // Create daemon
     let config = PortKeyConfig::default();
@@ -28,6 +28,7 @@ pub async fn run(port: u16, secrets: Option<PathBuf>, no_tui: bool) -> Result<()
         .send(DaemonCommand::Share {
             port,
             secrets_path: secrets,
+            auto_approve,
         })
         .await?;
 

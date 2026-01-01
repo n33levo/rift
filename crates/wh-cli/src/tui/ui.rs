@@ -26,6 +26,11 @@ pub fn draw(f: &mut Frame, app: &App) {
     draw_header(f, app, chunks[0]);
     draw_traffic_graph(f, app, chunks[1]);
     draw_logs(f, app, chunks[2]);
+
+    // Show approval popup if there's a pending connection request
+    if app.pending_approval.is_some() {
+        draw_approval_popup(f, app);
+    }
 }
 
 /// Draw the cyberpunk header with ASCII art
@@ -351,6 +356,59 @@ fn draw_help(f: &mut Frame) {
         .alignment(Alignment::Left);
 
     f.render_widget(help_block, area);
+}
+
+/// Draw connection approval popup
+fn draw_approval_popup(f: &mut Frame, app: &App) {
+    let area = centered_rect(60, 30, f.area());
+
+    if let Some(peer_id) = &app.pending_approval {
+        let peer_short = if peer_id.len() > 32 {
+            format!("{}...{}", &peer_id[..16], &peer_id[peer_id.len()-16..])
+        } else {
+            peer_id.clone()
+        };
+
+        let popup_text = vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "⚠ INCOMING CONNECTION REQUEST",
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Peer: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(peer_short, Style::default().fg(Color::Cyan)),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Allow this connection?",
+                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(" [Y] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                Span::raw(" Accept    "),
+                Span::styled(" [N] ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::raw(" Deny"),
+            ]),
+            Line::from(""),
+        ];
+
+        let popup_block = Paragraph::new(popup_text)
+            .block(
+                Block::default()
+                    .title(" 🔒 CONNECTION APPROVAL ")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Double)
+                    .border_style(Style::default().fg(Color::Yellow))
+                    .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+                    .style(Style::default().bg(Color::Black)),
+            )
+            .alignment(Alignment::Center);
+
+        f.render_widget(popup_block, area);
+    }
 }
 
 /// Helper to create a centered rect

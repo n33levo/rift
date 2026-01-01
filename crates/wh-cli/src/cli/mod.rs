@@ -45,6 +45,10 @@ pub enum Commands {
         /// Path to .env file containing secrets to share
         #[arg(short, long, value_name = "FILE")]
         secrets: Option<PathBuf>,
+
+        /// Automatically approve all incoming connections (insecure)
+        #[arg(long)]
+        auto_approve: bool,
     },
 
     /// Connect to a shared port

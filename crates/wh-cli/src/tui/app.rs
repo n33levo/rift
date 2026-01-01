@@ -78,6 +78,9 @@ pub struct App {
 
     /// Last stats update time
     last_stats_update: Instant,
+
+    /// Pending connection approval request
+    pub pending_approval: Option<String>,
 }
 
 impl App {
@@ -98,6 +101,7 @@ impl App {
             show_help: false,
             traffic_history: vec![0; 60],
             last_stats_update: Instant::now(),
+            pending_approval: None,
         }
     }
 
@@ -118,6 +122,7 @@ impl App {
             show_help: false,
             traffic_history: vec![0; 60],
             last_stats_update: Instant::now(),
+            pending_approval: None,
         }
     }
 
@@ -170,6 +175,10 @@ impl App {
             DaemonEvent::TunnelConnection { connection_id } => {
                 self.log(format!("New tunnel connection #{}", connection_id));
             }
+            DaemonEvent::IncomingConnectionRequest { peer_id } => {
+                self.log(format!("Connection request from {}", &peer_id[..16]));
+                self.pending_approval = Some(peer_id);
+            }
             DaemonEvent::SecretsReceived { count } => {
                 self.secrets_count = count;
                 self.log(format!("Received {} secrets", count));
@@ -205,6 +214,26 @@ impl App {
 
     /// Handle keyboard input
     pub fn handle_key(&mut self, key: KeyCode) -> Option<DaemonCommand> {
+        // If there's a pending approval, handle y/n first
+        if let Some(peer_id) = &self.pending_approval {
+            match key {
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    let peer_id = peer_id.clone();
+                    self.pending_approval = None;
+                    self.log("Connection approved");
+                    return Some(DaemonCommand::ApproveConnection { peer_id });
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') => {
+                    let peer_id = peer_id.clone();
+                    self.pending_approval = None;
+                    self.log("Connection denied");
+                    return Some(DaemonCommand::DenyConnection { peer_id });
+                }
+                _ => return None,
+            }
+        }
+
+        // Normal key handling
         match key {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.should_quit = true;

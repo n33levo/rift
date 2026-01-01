@@ -9,9 +9,10 @@ use wh_core::{
     NetworkEvent, PeerNetwork, PortKeyConfig, Result, PeerId,
     secrets::EnvVault,
 };
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::net::TcpListener;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing::{debug, error, info, warn};
 
@@ -35,6 +36,9 @@ pub enum DaemonEvent {
 
     /// New tunnel connection
     TunnelConnection { connection_id: u64 },
+
+    /// Incoming connection request (waiting for approval)
+    IncomingConnectionRequest { peer_id: String },
 
     /// Secrets received
     SecretsReceived { count: usize },
@@ -60,6 +64,7 @@ pub enum DaemonCommand {
     Share {
         port: u16,
         secrets_path: Option<PathBuf>,
+        auto_approve: bool,
     },
 
     /// Connect to a peer
@@ -68,6 +73,12 @@ pub enum DaemonCommand {
         port: u16,
         local_port: Option<u16>,
     },
+
+    /// Approve an incoming connection
+    ApproveConnection { peer_id: String },
+
+    /// Deny an incoming connection
+    DenyConnection { peer_id: String },
 
     /// Stop a session
     StopSession { session_id: u64 },
@@ -105,6 +116,9 @@ pub struct DaemonServer {
 
     /// Running flag
     running: bool,
+
+    /// Pending connection approvals (peer_id -> response channel)
+    pending_approvals: HashMap<String, oneshot::Sender<bool>>,
 }
 
 impl DaemonServer {
@@ -127,6 +141,7 @@ impl DaemonServer {
             command_tx,
             command_rx,
             running: false,
+            pending_approvals: HashMap::new(),
         })
     }
 
@@ -196,6 +211,9 @@ impl DaemonServer {
         // Track share session target port
         let mut share_port: Option<u16> = None;
         
+        // Track auto-approve setting
+        let mut auto_approve = false;
+        
         // Track secrets to share
         let mut share_secrets: Option<EnvVault> = None;
         
@@ -209,9 +227,10 @@ impl DaemonServer {
                 // Handle commands
                 Some(command) = self.command_rx.recv() => {
                     match command {
-                        DaemonCommand::Share { port, secrets_path } => {
-                            info!("Share command received for port {}", port);
+                        DaemonCommand::Share { port, secrets_path, auto_approve: auto_approve_flag } => {
+                            info!("Share command received for port {} (auto_approve={})", port, auto_approve_flag);
                             share_port = Some(port);
+                            auto_approve = auto_approve_flag;
                             
                             // Load secrets if provided
                             if let Some(path) = secrets_path {
@@ -261,6 +280,18 @@ impl DaemonServer {
                                 }
                             }
                         }
+                        DaemonCommand::ApproveConnection { peer_id } => {
+                            info!("Approving connection from {}", peer_id);
+                            if let Some(tx) = self.pending_approvals.remove(&peer_id) {
+                                let _ = tx.send(true);
+                            }
+                        }
+                        DaemonCommand::DenyConnection { peer_id } => {
+                            info!("Denying connection from {}", peer_id);
+                            if let Some(tx) = self.pending_approvals.remove(&peer_id) {
+                                let _ = tx.send(false);
+                            }
+                        }
                         DaemonCommand::Shutdown => {
                             info!("Shutdown command received");
                             self.running = false;
@@ -272,14 +303,53 @@ impl DaemonServer {
                 // Handle incoming streams (host side - share)
                 Some((peer_id, stream)) = incoming_streams.next() => {
                     if let Some(port) = share_port {
-                        info!("Incoming stream from {} - bridging to localhost:{}", peer_id, port);
-                        // Spawn a task to bridge this stream to localhost:port
-                        tokio::spawn(async move {
-                            if let Err(e) = bridge_stream_to_tcp(stream, port).await {
-                                warn!("Stream bridge ended: {}", e);
+                        let peer_id_str = peer_id.to_string();
+                        info!("Incoming stream from {} - checking approval...", peer_id_str);
+                        
+                        // Check if auto-approve is enabled
+                        let approved = if auto_approve {
+                            info!("Auto-approving connection from {}", peer_id_str);
+                            true
+                        } else {
+                            // Request approval from UI
+                            let (approval_tx, approval_rx) = oneshot::channel();
+                            self.pending_approvals.insert(peer_id_str.clone(), approval_tx);
+                            
+                            let _ = event_tx.send(DaemonEvent::IncomingConnectionRequest {
+                                peer_id: peer_id_str.clone(),
+                            }).await;
+                            
+                            // Wait for approval (with timeout)
+                            match tokio::time::timeout(
+                                std::time::Duration::from_secs(30),
+                                approval_rx
+                            ).await {
+                                Ok(Ok(approved)) => approved,
+                                Ok(Err(_)) => {
+                                    warn!("Approval channel closed for {}", peer_id_str);
+                                    false
+                                }
+                                Err(_) => {
+                                    warn!("Approval timeout for {}", peer_id_str);
+                                    self.pending_approvals.remove(&peer_id_str);
+                                    false
+                                }
                             }
-                            debug!("Stream from {} closed", peer_id);
-                        });
+                        };
+                        
+                        if approved {
+                            info!("Connection approved - bridging to localhost:{}", port);
+                            // Spawn a task to bridge this stream to localhost:port
+                            tokio::spawn(async move {
+                                if let Err(e) = bridge_stream_to_tcp(stream, port).await {
+                                    warn!("Stream bridge ended: {}", e);
+                                }
+                                debug!("Stream from {} closed", peer_id);
+                            });
+                        } else {
+                            info!("Connection denied from {}", peer_id_str);
+                            drop(stream);
+                        }
                     } else {
                         warn!("Received stream but no share session active");
                     }
