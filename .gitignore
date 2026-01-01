@@ -59,6 +59,12 @@ perf.data.old
 flamegraph.svg
 callgrind.out.*
 
+# VHS demo recordings (generated from demo.tape)
+demo.gif
+*.gif
+*.cast
+*.mp4
+
 # Documentation
 /doc/
 
