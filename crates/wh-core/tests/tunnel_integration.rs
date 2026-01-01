@@ -71,7 +71,6 @@ async fn test_client(port: u16) -> Result<String, Box<dyn std::error::Error>> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore] // Ignore by default since it requires full network setup
 async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for debugging
     let _ = tracing_subscriber::fmt()
@@ -79,6 +78,9 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
         .try_init();
     
     println!("\n=== Starting End-to-End Tunnel Test ===\n");
+    
+    // Wrap the entire test in a 15-second timeout
+    timeout(Duration::from_secs(15), async {
     
     // Step 1: Start target server on port 3000
     println!("[Setup] Starting target server on port 3000");
@@ -136,77 +138,145 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     let mut peer_b_network = wh_core::PeerNetwork::new(peer_b_config).await?;
     peer_b_network.start_listening().await?;
     
-    println!("[Peer B] Connecting to Peer A: {}", peer_a_link);
-    let peer_a_id = peer_b_network.connect(&peer_a_link).await?;
+    // Parse Peer A's ID from the link for later use
+    let peer_a_id = wh_core::network::PeerIdentity::parse_portkey_link(&peer_a_link)?;
     
-    // Give time for connection to establish
-    println!("[Peer B] Waiting for connection to establish...");
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    // Channel to signal when Peer B has connected to Peer A
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
     
-    // Start local listener on Peer B side (port 8080)
-    let listener = TcpListener::bind("127.0.0.1:8080").await?;
-    println!("[Peer B] Local listener started on 127.0.0.1:8080");
-    
-    // Spawn task to handle incoming TCP connections on Peer B
-    let stream_control = peer_b_network.stream_control();
+    // Spawn a single task that owns Peer B's network completely
+    // This task handles: discovery, connection, TCP listening, and network polling
     let peer_b_handler = tokio::spawn(async move {
+        let start = std::time::Instant::now();
+        let mut connected = false;
+        let mut stream_control = None;
+        let mut ready_tx = Some(ready_tx);
+        let mut last_connect_attempt = std::time::Instant::now() - Duration::from_secs(10);
+        
+        // Start local TCP listener
+        let listener = match TcpListener::bind("127.0.0.1:8080").await {
+            Ok(l) => {
+                println!("[Peer B] Local listener started on 127.0.0.1:8080");
+                l
+            }
+            Err(e) => {
+                eprintln!("[Peer B] Failed to bind listener: {}", e);
+                return;
+            }
+        };
+        
+        println!("[Peer B] Starting network polling loop...");
+        
         loop {
-            match listener.accept().await {
-                Ok((tcp_stream, addr)) => {
-                    println!("[Peer B] Incoming TCP connection from {}", addr);
-                    let mut control = stream_control.clone();
-                    let peer_id = peer_a_id;
+            // If not connected yet, try to connect
+            if !connected {
+                // Poll the network (non-blocking) to process events
+                tokio::select! {
+                    _ = peer_b_network.poll_once() => {},
+                    _ = tokio::time::sleep(Duration::from_millis(10)) => {},
+                }
+                
+                // Try to connect every 200ms after initial 500ms discovery window
+                let should_attempt = if start.elapsed() < Duration::from_millis(500) {
+                    false // Wait for mDNS discovery first  
+                } else if last_connect_attempt.elapsed() > Duration::from_millis(200) {
+                    true // Retry every 200ms
+                } else {
+                    false
+                };
+                
+                if should_attempt {
+                    last_connect_attempt = std::time::Instant::now();
+                    println!("[Peer B] Attempting to connect to Peer A (elapsed: {:?})...", start.elapsed());
                     
-                    tokio::spawn(async move {
-                        use tokio_util::compat::FuturesAsyncReadCompatExt;
-                        
-                        match wh_core::open_tunnel_stream(&mut control, peer_id).await {
-                            Ok(stream) => {
-                                println!("[Peer B] Opened stream to peer, starting bridge");
-                                let stream = stream.compat();
-                                let (mut stream_read, mut stream_write) = tokio::io::split(stream);
-                                let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
-                                
-                                // Bidirectional copy
-                                tokio::select! {
-                                    r = tokio::io::copy(&mut stream_read, &mut tcp_write) => {
-                                        if let Err(e) = r {
-                                            eprintln!("[Peer B] Stream->TCP error: {}", e);
-                                        } else {
-                                            println!("[Peer B] Stream->TCP completed");
-                                        }
-                                    }
-                                    r = tokio::io::copy(&mut tcp_read, &mut stream_write) => {
-                                        if let Err(e) = r {
-                                            eprintln!("[Peer B] TCP->Stream error: {}", e);
-                                        } else {
-                                            println!("[Peer B] TCP->Stream completed");
-                                        }
-                                    }
-                                }
-                                println!("[Peer B] Bridge completed");
-                            }
-                            Err(e) => {
-                                eprintln!("[Peer B] Failed to open stream: {}", e);
+                    match peer_b_network.connect(&peer_a_link).await {
+                        Ok(id) => {
+                            println!("[Peer B] Successfully connected to Peer A: {}", id);
+                            connected = true;
+                            stream_control = Some(peer_b_network.stream_control());
+                            
+                            // Signal that we're ready
+                            if let Some(tx) = ready_tx.take() {
+                                let _ = tx.send(());
                             }
                         }
-                    });
+                        Err(e) => {
+                            println!("[Peer B] Connection attempt failed: {} (will retry)", e);
+                            
+                            // Give up after 5 seconds
+                            if start.elapsed() > Duration::from_secs(5) {
+                                eprintln!("[Peer B] Giving up after 5 seconds");
+                                return;
+                            }
+                        }
+                    }
                 }
-                Err(e) => {
-                    eprintln!("[Peer B] Accept error: {}", e);
-                    break;
+            } else {
+                // Connected - handle TCP connections while continuing to poll network
+                if let Some(control) = &stream_control {
+                    tokio::select! {
+                        // Continue polling the network
+                        _ = peer_b_network.poll_once() => {},
+                        
+                        // Accept incoming TCP connections
+                        accept_result = listener.accept() => {
+                            match accept_result {
+                                Ok((tcp_stream, addr)) => {
+                                    println!("[Peer B] Incoming TCP connection from {}", addr);
+                                    let mut control = control.clone();
+                                    let peer_id = peer_a_id;
+                                    
+                                    tokio::spawn(async move {
+                                        use tokio_util::compat::FuturesAsyncReadCompatExt;
+                                        
+                                        match wh_core::open_tunnel_stream(&mut control, peer_id).await {
+                                            Ok(stream) => {
+                                                println!("[Peer B] Opened stream to peer, starting bridge");
+                                                let stream = stream.compat();
+                                                let (mut stream_read, mut stream_write) = tokio::io::split(stream);
+                                                let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
+                                                
+                                                // Bidirectional copy
+                                                tokio::select! {
+                                                    r = tokio::io::copy(&mut stream_read, &mut tcp_write) => {
+                                                        if let Err(e) = r {
+                                                            eprintln!("[Peer B] Stream->TCP error: {}", e);
+                                                        } else {
+                                                            println!("[Peer B] Stream->TCP completed");
+                                                        }
+                                                    }
+                                                    r = tokio::io::copy(&mut tcp_read, &mut stream_write) => {
+                                                        if let Err(e) = r {
+                                                            eprintln!("[Peer B] TCP->Stream error: {}", e);
+                                                        } else {
+                                                            println!("[Peer B] TCP->Stream completed");
+                                                        }
+                                                    }
+                                                }
+                                                println!("[Peer B] Bridge completed");
+                                            }
+                                            Err(e) => {
+                                                eprintln!("[Peer B] Failed to open stream: {}", e);
+                                            }
+                                        }
+                                    });
+                                }
+                                Err(e) => {
+                                    eprintln!("[Peer B] Accept error: {}", e);
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     });
     
-    // Keep peer B's network alive
-    let peer_b_poll = tokio::spawn(async move {
-        loop {
-            peer_b_network.poll_once().await;
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    });
+    // Wait for Peer B to be ready
+    println!("[Test] Waiting for Peer B to connect to Peer A...");
+    ready_rx.await.map_err(|_| "Peer B failed to connect")?;
+    println!("[Test] Peer B connected successfully!");
     
     // Step 4: Give everything time to stabilize
     println!("\n[Test] Waiting for tunnel to stabilize...");
@@ -235,7 +305,9 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     peer_a_handler.abort();
     peer_a_poll.abort();
     peer_b_handler.abort();
-    peer_b_poll.abort();
+    
+    Ok::<(), Box<dyn std::error::Error>>(())
+    }).await.map_err(|_| "Test timed out after 15 seconds")??;
     
     Ok(())
 }
