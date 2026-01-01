@@ -30,6 +30,7 @@ pub struct ConnectionEntry {
     pub bytes_sent: u64,
     #[allow(dead_code)]
     pub bytes_received: u64,
+    #[allow(dead_code)]
     pub active: bool,
 }
 
@@ -42,6 +43,7 @@ pub struct App {
     pub port: u16,
 
     /// Local port for connect mode
+    #[allow(dead_code)]
     pub local_port: u16,
 
     /// PortKey link
@@ -67,6 +69,15 @@ pub struct App {
 
     /// Secrets count (if any)
     pub secrets_count: usize,
+
+    /// Show help overlay
+    pub show_help: bool,
+
+    /// Traffic history for graph (bytes per second)
+    pub traffic_history: Vec<u64>,
+
+    /// Last stats update time
+    last_stats_update: Instant,
 }
 
 impl App {
@@ -84,6 +95,9 @@ impl App {
             should_quit: false,
             status: "Waiting for connections".to_string(),
             secrets_count: 0,
+            show_help: false,
+            traffic_history: vec![0; 60],
+            last_stats_update: Instant::now(),
         }
     }
 
@@ -101,6 +115,9 @@ impl App {
             should_quit: false,
             status: "Connecting...".to_string(),
             secrets_count: 0,
+            show_help: false,
+            traffic_history: vec![0; 60],
+            last_stats_update: Instant::now(),
         }
     }
 
@@ -162,8 +179,20 @@ impl App {
                 bytes_received,
                 active_connections: _,
             } => {
+                // Calculate bytes/sec since last update
+                let elapsed = self.last_stats_update.elapsed().as_secs_f64();
+                if elapsed > 0.0 {
+                    let bytes_delta = (bytes_sent + bytes_received).saturating_sub(self.bytes_sent + self.bytes_received);
+                    let bytes_per_sec = (bytes_delta as f64 / elapsed) as u64;
+                    
+                    // Add to history and shift
+                    self.traffic_history.remove(0);
+                    self.traffic_history.push(bytes_per_sec);
+                }
+                
                 self.bytes_sent = bytes_sent;
                 self.bytes_received = bytes_received;
+                self.last_stats_update = Instant::now();
             }
             DaemonEvent::Error { message } => {
                 self.log(format!("Error: {}", message));
@@ -180,6 +209,10 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.should_quit = true;
                 Some(DaemonCommand::Shutdown)
+            }
+            KeyCode::Char('h') => {
+                self.show_help = !self.show_help;
+                None
             }
             _ => None,
         }
