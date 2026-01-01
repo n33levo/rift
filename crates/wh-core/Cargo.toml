@@ -1,8 +1,8 @@
 [package]
-name = "pk-core"
+name = "wh-core"
 version.workspace = true
 edition.workspace = true
-description = "Core P2P networking and tunneling logic for PortKey"
+description = "Core P2P networking and tunneling logic for Wormhole"
 
 [dependencies]
 tokio = { workspace = true }

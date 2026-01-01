@@ -1,8 +1,8 @@
-//! Session Management for PortKey
+//! Session Management for Rift
 //!
 //! Manages sharing and connecting sessions with the stream-based tunnel.
 
-use pk_core::{EnvVault, Result, secrets::SecretsResponse};
+use wh_core::{EnvVault, Result, secrets::SecretsResponse};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;

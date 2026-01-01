@@ -3,7 +3,7 @@
 //! Main daemon that orchestrates the P2P network, sessions, and UI updates.
 
 use futures::StreamExt;
-use pk_core::{
+use wh_core::{
     bridge_stream_to_tcp, open_tunnel_stream,
     send_secrets, receive_secrets,
     NetworkEvent, PeerNetwork, PortKeyConfig, Result, PeerId,
@@ -296,7 +296,7 @@ impl DaemonServer {
                             let (mut read, mut write) = tokio::io::split(stream);
                             
                             // 1. Read SecretsRequest
-                            let request: pk_core::secrets::SecretsRequest = match receive_secrets(&mut read).await {
+                            let request: wh_core::secrets::SecretsRequest = match receive_secrets(&mut read).await {
                                 Ok(req) => req,
                                 Err(e) => {
                                     error!("Failed to receive request: {}", e);

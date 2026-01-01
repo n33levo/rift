@@ -1,8 +1,8 @@
 //! Connect Command Implementation
 
 use anyhow::Result;
-use pk_core::{PortKeyConfig, PeerId, secrets::{EnvVault, SecretsRequest}};
-use pk_daemon::{DaemonCommand, DaemonServer};
+use wh_core::{PortKeyConfig, PeerId, secrets::{EnvVault, SecretsRequest}};
+use wh_daemon::{DaemonCommand, DaemonServer};
 use std::path::PathBuf;
 use tracing::{info, error};
 
@@ -94,14 +94,14 @@ async fn request_secrets_from_peer(
     peer_link: &str,
     save_path: &Option<PathBuf>,
 ) -> Result<()> {
-    use pk_core::{network::{PeerIdentity, SECRETS_PROTOCOL}, send_secrets, receive_secrets};
+    use wh_core::{network::{PeerIdentity, SECRETS_PROTOCOL}, send_secrets, receive_secrets};
     use tokio_util::compat::FuturesAsyncReadCompatExt;
     
     info!("Requesting secrets from peer");
     
     // Create a temporary network just for secrets request
     let config = PortKeyConfig::default();
-    let mut network = pk_core::PeerNetwork::new(config).await?;
+    let mut network = wh_core::PeerNetwork::new(config).await?;
     
     // Parse peer ID from link
     let peer_id: PeerId = PeerIdentity::parse_portkey_link(peer_link)?;

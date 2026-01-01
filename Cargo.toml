@@ -1,16 +1,20 @@
 [workspace]
-members = ["crates/pk-cli", "crates/pk-core", "crates/pk-daemon"]
+members = ["crates/wh-cli", "crates/wh-core", "crates/wh-daemon"]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-authors = ["PortKey Contributors"]
+authors = ["Wormhole Contributors"]
 license = "MIT"
-repository = "https://github.com/portkey/portkey"
+repository = "https://github.com/wormhole/wormhole"
 description = "Local-First P2P tunneling tool - ngrok alternative with QUIC"
 
 [workspace.dependencies]
+# Internal crates
+wh-core = { path = "crates/wh-core" }
+wh-daemon = { path = "crates/wh-daemon" }
+
 # Async Runtime
 tokio = { version = "1.42", features = ["full"] }
 futures = "0.3"

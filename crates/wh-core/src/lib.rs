@@ -1,12 +1,13 @@
-//! PortKey Core Library
+//! Rift Core Library
 //!
-//! This crate provides the core P2P networking and tunneling logic for PortKey.
+//! This crate provides the core P2P networking and tunneling logic for Rift.
 //! It includes:
 //! - libp2p swarm management with QUIC transport
 //! - Peer discovery and NAT hole punching
 //! - TCP proxy tunneling over QUIC streams
 //! - EnvVault secrets management
 
+pub mod brand;
 pub mod config;
 pub mod crypto;
 pub mod error;

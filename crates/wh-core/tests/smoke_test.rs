@@ -34,11 +34,11 @@ async fn test_tcp_echo_server() {
 #[tokio::test]
 async fn test_bridge_function_signature() {
     // This just verifies the function exists and has the right signature
-    let _ = pk_core::bridge_stream_to_tcp; 
-    let _ = pk_core::open_tunnel_stream;
+    let _ = wh_core::bridge_stream_to_tcp; 
+    let _ = wh_core::open_tunnel_stream;
     
     // Verify PeerNetwork can be constructed (will fail without proper setup, that's OK)
-    let config = pk_core::PortKeyConfig {
+    let config = wh_core::PortKeyConfig {
         listen_port: 0,
         identity_path: std::env::temp_dir().join("test_peer"),
         ..Default::default()
@@ -47,7 +47,7 @@ async fn test_bridge_function_signature() {
     // This might fail if ports are in use, but at least it compiles
     let result = tokio::time::timeout(
         Duration::from_millis(100),
-        pk_core::PeerNetwork::new(config)
+        wh_core::PeerNetwork::new(config)
     ).await;
     
     // We don't care if it times out or fails, we just want to verify it compiles
@@ -57,6 +57,6 @@ async fn test_bridge_function_signature() {
 /// Test that the config can be created with defaults
 #[test]
 fn test_config_creation() {
-    let config = pk_core::PortKeyConfig::default();
+    let config = wh_core::PortKeyConfig::default();
     assert_eq!(config.listen_port, 0);
 }

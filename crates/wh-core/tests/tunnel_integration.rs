@@ -75,7 +75,7 @@ async fn test_client(port: u16) -> Result<String, Box<dyn std::error::Error>> {
 async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for debugging
     let _ = tracing_subscriber::fmt()
-        .with_env_filter("info,pk_core=debug,pk_daemon=debug")
+        .with_env_filter("info,wh_core=debug,wh_daemon=debug")
         .try_init();
     
     println!("\n=== Starting End-to-End Tunnel Test ===\n");
@@ -87,13 +87,13 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     
     // Step 2: Start Peer A (Sharer) - shares port 3000
     println!("[Setup] Starting Peer A (sharer)");
-    let peer_a_config = pk_core::PortKeyConfig {
+    let peer_a_config = wh_core::PortKeyConfig {
         listen_port: 9001,
         identity_path: std::path::PathBuf::from("/tmp/portkey_test_peer_a"),
         ..Default::default()
     };
     
-    let mut peer_a_network = pk_core::PeerNetwork::new(peer_a_config).await?;
+    let mut peer_a_network = wh_core::PeerNetwork::new(peer_a_config).await?;
     peer_a_network.start_listening().await?;
     let peer_a_link = peer_a_network.portkey_link();
     
@@ -108,7 +108,7 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
         while let Some((_peer_id, stream)) = peer_a_incoming.next().await {
             println!("[Peer A] Incoming stream! Bridging to localhost:3000");
             tokio::spawn(async move {
-                if let Err(e) = pk_core::bridge_stream_to_tcp(stream, 3000).await {
+                if let Err(e) = wh_core::bridge_stream_to_tcp(stream, 3000).await {
                     eprintln!("[Peer A] Bridge error: {}", e);
                 } else {
                     println!("[Peer A] Bridge completed successfully");
@@ -127,13 +127,13 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
     
     // Step 3: Start Peer B (Connector) - connects to Peer A, listens on 8080
     println!("[Setup] Starting Peer B (connector)");
-    let peer_b_config = pk_core::PortKeyConfig {
+    let peer_b_config = wh_core::PortKeyConfig {
         listen_port: 9002,
         identity_path: std::path::PathBuf::from("/tmp/portkey_test_peer_b"),
         ..Default::default()
     };
     
-    let mut peer_b_network = pk_core::PeerNetwork::new(peer_b_config).await?;
+    let mut peer_b_network = wh_core::PeerNetwork::new(peer_b_config).await?;
     peer_b_network.start_listening().await?;
     
     println!("[Peer B] Connecting to Peer A: {}", peer_a_link);
@@ -160,7 +160,7 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
                     tokio::spawn(async move {
                         use tokio_util::compat::FuturesAsyncReadCompatExt;
                         
-                        match pk_core::open_tunnel_stream(&mut control, peer_id).await {
+                        match wh_core::open_tunnel_stream(&mut control, peer_id).await {
                             Ok(stream) => {
                                 println!("[Peer B] Opened stream to peer, starting bridge");
                                 let stream = stream.compat();
@@ -245,6 +245,6 @@ async fn test_end_to_end_tunnel() -> Result<(), Box<dyn std::error::Error>> {
 async fn test_bridge_function_exists() {
     // This just ensures the function exists and can be called
     // We can't easily test it without a full libp2p setup
-    let _ = pk_core::bridge_stream_to_tcp; // Function exists
-    let _ = pk_core::open_tunnel_stream; // Function exists
+    let _ = wh_core::bridge_stream_to_tcp; // Function exists
+    let _ = wh_core::open_tunnel_stream; // Function exists
 }

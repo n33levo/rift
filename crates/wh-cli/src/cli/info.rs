@@ -1,7 +1,7 @@
 //! Info Command Implementation
 
 use anyhow::Result;
-use pk_core::{network::PeerIdentity, PortKeyConfig};
+use wh_core::{network::PeerIdentity, PortKeyConfig};
 
 /// Run the info command
 pub async fn run() -> Result<()> {

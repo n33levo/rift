@@ -1,8 +1,8 @@
 //! Share Command Implementation
 
 use anyhow::Result;
-use pk_core::PortKeyConfig;
-use pk_daemon::{DaemonCommand, DaemonServer};
+use wh_core::PortKeyConfig;
+use wh_daemon::{DaemonCommand, DaemonServer};
 use std::path::PathBuf;
 use tracing::info;
 

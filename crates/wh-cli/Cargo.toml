@@ -1,20 +1,26 @@
 [package]
-name = "pk-daemon"
+name = "wh-cli"
 version.workspace = true
 edition.workspace = true
-description = "Background daemon for PortKey P2P tunneling"
+description = "CLI interface for Wormhole P2P tunneling tool"
+
+[[bin]]
+name = "rift"
+path = "src/main.rs"
 
 [dependencies]
-pk-core = { workspace = true }
+wh-core = { workspace = true }
+wh-daemon = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 futures = { workspace = true }
-libp2p = { workspace = true }
+clap = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-bincode = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-bytes = { workspace = true }
+dirs = { workspace = true }
