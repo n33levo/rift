@@ -123,8 +123,9 @@ fn draw_traffic_graph(f: &mut Frame, app: &App, area: Rect) {
         ])
         .split(area);
 
-    // Traffic sparkline
-    let max_traffic = app.traffic_history.iter().max().copied().unwrap_or(1);
+    // Traffic sparkline - use a minimum scale of 10KB/s so small values don't show as full bars
+    let max_traffic = app.traffic_history.iter().max().copied().unwrap_or(0);
+    let scale = max_traffic.max(10 * 1024); // Minimum 10 KB/s scale
     let sparkline = Sparkline::default()
         .block(
             Block::default()
@@ -136,7 +137,7 @@ fn draw_traffic_graph(f: &mut Frame, app: &App, area: Rect) {
         )
         .data(&app.traffic_history)
         .style(Style::default().fg(Color::Cyan))
-        .max(max_traffic);
+        .max(scale);
 
     f.render_widget(sparkline, chunks[0]);
 

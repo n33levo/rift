@@ -16,17 +16,20 @@ async fn main() -> Result<()> {
     // Parse CLI arguments
     let cli = Cli::parse();
 
-    // Setup logging
-    let filter = if cli.verbose {
-        EnvFilter::new("debug")
-    } else {
-        EnvFilter::new("info")
-    };
+    // Only setup logging when TUI is NOT active (to prevent log output corrupting TUI)
+    // When TUI is active, logs go through the TUI's event log panel instead
+    if cli.no_tui {
+        let filter = if cli.verbose {
+            EnvFilter::new("debug")
+        } else {
+            EnvFilter::new("info")
+        };
 
-    tracing_subscriber::registry()
-        .with(fmt::layer().with_target(false))
-        .with(filter)
-        .init();
+        tracing_subscriber::registry()
+            .with(fmt::layer().with_target(false))
+            .with(filter)
+            .init();
+    }
 
     // Execute command
     match cli.command {

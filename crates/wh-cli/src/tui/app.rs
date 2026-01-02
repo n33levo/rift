@@ -2,10 +2,11 @@
 
 use anyhow::Result;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, EventStream},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use futures::StreamExt;
 use wh_daemon::{DaemonCommand, DaemonEvent};
 use ratatui::{prelude::*, Terminal};
 use std::io;
@@ -99,7 +100,7 @@ impl App {
             status: "Waiting for connections".to_string(),
             secrets_count: 0,
             show_help: false,
-            traffic_history: vec![0; 60],
+            traffic_history: vec![0; 120], // More data points for smoother graph
             last_stats_update: Instant::now(),
             pending_approval: None,
         }
@@ -120,7 +121,7 @@ impl App {
             status: "Connecting...".to_string(),
             secrets_count: 0,
             show_help: false,
-            traffic_history: vec![0; 60],
+            traffic_history: vec![0; 120], // More data points for smoother graph
             last_stats_update: Instant::now(),
             pending_approval: None,
         }
@@ -298,26 +299,28 @@ async fn run_tui(
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Run loop
-    let tick_rate = Duration::from_millis(100);
-    let mut last_tick = Instant::now();
+    // Create async event stream for keyboard/mouse events
+    let mut reader = EventStream::new();
+    
+    // Run loop with async event handling
+    let tick_rate = Duration::from_millis(50);
+    let mut tick_interval = tokio::time::interval(tick_rate);
 
     let result = loop {
-        // Draw
+        // Draw on every iteration
         if let Err(e) = terminal.draw(|f| ui::draw(f, &app)) {
             error!("Draw error: {}", e);
             break Err(e.into());
         }
 
-        // Handle events with timeout
-        let timeout = tick_rate
-            .checked_sub(last_tick.elapsed())
-            .unwrap_or_else(|| Duration::from_secs(0));
-
-        // Check for keyboard events (non-blocking with timeout)
-        match crossterm::event::poll(timeout) {
-            Ok(true) => {
-                if let Ok(Event::Key(key)) = event::read() {
+        // Use tokio::select! to concurrently wait for:
+        // 1. Keyboard/mouse events (async)
+        // 2. Daemon events from the channel
+        // 3. Tick timer for periodic UI updates
+        tokio::select! {
+            // Handle keyboard events asynchronously
+            maybe_event = reader.next() => {
+                if let Some(Ok(Event::Key(key))) = maybe_event {
                     if key.kind == KeyEventKind::Press {
                         if let Some(cmd) = app.handle_key(key.code) {
                             let _ = command_tx.send(cmd).await;
@@ -325,33 +328,21 @@ async fn run_tui(
                     }
                 }
             }
-            Ok(false) => {
-                // No keyboard event, continue
+            
+            // Handle daemon events
+            Some(daemon_event) = event_rx.recv() => {
+                app.handle_event(daemon_event);
             }
-            Err(e) => {
-                error!("Poll error: {}", e);
-                break Err(e.into());
-            }
-        }
-
-        // Check for daemon events (non-blocking) - process ALL pending
-        loop {
-            match event_rx.try_recv() {
-                Ok(event) => {
-                    app.handle_event(event);
-                }
-                Err(_) => break, // No more events
+            
+            // Periodic tick for UI refresh
+            _ = tick_interval.tick() => {
+                // Just triggers a redraw at the top of the loop
             }
         }
 
         // Check quit
         if app.should_quit {
             break Ok(());
-        }
-
-        // Update tick
-        if last_tick.elapsed() >= tick_rate {
-            last_tick = Instant::now();
         }
     };
 

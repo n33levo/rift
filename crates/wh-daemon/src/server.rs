@@ -4,7 +4,7 @@
 
 use futures::StreamExt;
 use wh_core::{
-    bridge_stream_to_tcp, open_tunnel_stream,
+    open_tunnel_stream,
     send_secrets, receive_secrets,
     NetworkEvent, PeerNetwork, RiftConfig, Result, PeerId,
     secrets::EnvVault,
@@ -88,6 +88,17 @@ pub enum DaemonCommand {
     Shutdown,
 }
 
+/// Shared traffic stats (atomic for cross-task updates)
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc as StdArc;
+
+#[derive(Debug, Default)]
+pub struct TrafficStats {
+    pub bytes_sent: AtomicU64,
+    pub bytes_received: AtomicU64,
+    pub active_connections: AtomicU64,
+}
+
 /// Main daemon server
 pub struct DaemonServer {
     /// Configuration
@@ -120,6 +131,9 @@ pub struct DaemonServer {
 
     /// Pending connection approvals (peer_id -> response channel)
     pending_approvals: HashMap<String, oneshot::Sender<bool>>,
+    
+    /// Traffic statistics (shared with spawned tasks)
+    traffic_stats: StdArc<TrafficStats>,
 }
 
 impl DaemonServer {
@@ -143,6 +157,7 @@ impl DaemonServer {
             command_rx,
             running: false,
             pending_approvals: HashMap::new(),
+            traffic_stats: StdArc::new(TrafficStats::default()),
         })
     }
 
@@ -153,7 +168,7 @@ impl DaemonServer {
 
     /// Take the event receiver
     pub fn take_event_receiver(&mut self) -> mpsc::Receiver<DaemonEvent> {
-        let (new_tx, new_rx) = mpsc::channel(256);
+        let (_new_tx, new_rx) = mpsc::channel(256);
         let old_rx = std::mem::replace(&mut self.event_rx, new_rx);
         // DON'T replace event_tx - keep sending to the channel we're giving out
         old_rx
@@ -208,6 +223,7 @@ impl DaemonServer {
         let mut incoming_streams = network.take_incoming_streams();
         let mut incoming_secrets_streams = network.take_incoming_secrets_streams();
         let event_tx = self.event_tx.clone();
+        let traffic_stats = self.traffic_stats.clone();
 
         // Track share session target port
         let mut share_port: Option<u16> = None;
@@ -221,10 +237,22 @@ impl DaemonServer {
         // Track connect session info
         let mut connect_info: Option<(PeerId, u16, TcpListener)> = None;
         let stream_control = network.stream_control();
+        
+        // Stats update timer - send stats every 100ms for smooth graph updates
+        let mut stats_interval = tokio::time::interval(tokio::time::Duration::from_millis(100));
+        stats_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         // Main event loop
         while self.running {
             tokio::select! {
+                // Periodic stats update
+                _ = stats_interval.tick() => {
+                    let _ = event_tx.send(DaemonEvent::StatsUpdate {
+                        bytes_sent: traffic_stats.bytes_sent.load(Ordering::Relaxed),
+                        bytes_received: traffic_stats.bytes_received.load(Ordering::Relaxed),
+                        active_connections: traffic_stats.active_connections.load(Ordering::Relaxed),
+                    }).await;
+                }
                 // Handle commands
                 Some(command) = self.command_rx.recv() => {
                     match command {
@@ -364,12 +392,19 @@ impl DaemonServer {
                         
                         if approved {
                             info!("Connection approved - bridging to localhost:{}", port);
-                            // Spawn a task to bridge this stream to localhost:port
+                            let stats = traffic_stats.clone();
+                            // Spawn a task to bridge this stream to localhost:port with traffic tracking
                             tokio::spawn(async move {
-                                if let Err(e) = bridge_stream_to_tcp(stream, port).await {
-                                    warn!("Stream bridge ended: {}", e);
+                                stats.active_connections.fetch_add(1, Ordering::Relaxed);
+                                match bridge_with_stats(stream, port, stats.clone()).await {
+                                    Ok((sent, recv)) => {
+                                        debug!("Stream from {} closed. Sent: {}, Recv: {}", peer_id, sent, recv);
+                                    }
+                                    Err(e) => {
+                                        warn!("Stream bridge ended: {}", e);
+                                    }
                                 }
-                                debug!("Stream from {} closed", peer_id);
+                                stats.active_connections.fetch_sub(1, Ordering::Relaxed);
                             });
                         } else {
                             info!("Connection denied from {}", peer_id_str);
@@ -435,8 +470,10 @@ impl DaemonServer {
                             info!("Incoming TCP connection from {} - opening stream to peer", addr);
                             let peer_id = *peer_id;
                             let mut control = stream_control.clone();
+                            let stats = traffic_stats.clone();
                             
                             tokio::spawn(async move {
+                                stats.active_connections.fetch_add(1, Ordering::Relaxed);
                                 match open_tunnel_stream(&mut control, peer_id).await {
                                     Ok(stream) => {
                                         // Convert futures AsyncRead/Write to tokio
@@ -444,18 +481,53 @@ impl DaemonServer {
                                         let (mut stream_read, mut stream_write) = tokio::io::split(stream);
                                         let (mut tcp_read, mut tcp_write) = tcp_stream.into_split();
                                         
-                                        // Bidirectional copy
+                                        // Bidirectional copy with stats tracking
+                                        let stats_clone = stats.clone();
                                         tokio::select! {
-                                            r = tokio::io::copy(&mut stream_read, &mut tcp_write) => {
-                                                if let Err(e) = r {
-                                                    debug!("Stream->TCP ended: {}", e);
+                                            _r = async {
+                                                let mut buf = [0u8; 8192];
+                                                let mut total = 0u64;
+                                                loop {
+                                                    match tokio::io::AsyncReadExt::read(&mut stream_read, &mut buf).await {
+                                                        Ok(0) => break,
+                                                        Ok(n) => {
+                                                            if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut tcp_write, &buf[..n]).await {
+                                                                debug!("Stream->TCP write error: {}", e);
+                                                                break;
+                                                            }
+                                                            total += n as u64;
+                                                            stats_clone.bytes_received.fetch_add(n as u64, Ordering::Relaxed);
+                                                        }
+                                                        Err(e) => {
+                                                            debug!("Stream->TCP read error: {}", e);
+                                                            break;
+                                                        }
+                                                    }
                                                 }
-                                            }
-                                            r = tokio::io::copy(&mut tcp_read, &mut stream_write) => {
-                                                if let Err(e) = r {
-                                                    debug!("TCP->Stream ended: {}", e);
+                                                total
+                                            } => {}
+                                            _r = async {
+                                                let mut buf = [0u8; 8192];
+                                                let mut total = 0u64;
+                                                loop {
+                                                    match tokio::io::AsyncReadExt::read(&mut tcp_read, &mut buf).await {
+                                                        Ok(0) => break,
+                                                        Ok(n) => {
+                                                            if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut stream_write, &buf[..n]).await {
+                                                                debug!("TCP->Stream write error: {}", e);
+                                                                break;
+                                                            }
+                                                            total += n as u64;
+                                                            stats.bytes_sent.fetch_add(n as u64, Ordering::Relaxed);
+                                                        }
+                                                        Err(e) => {
+                                                            debug!("TCP->Stream read error: {}", e);
+                                                            break;
+                                                        }
+                                                    }
                                                 }
-                                            }
+                                                total
+                                            } => {}
                                         }
                                         debug!("Tunnel connection to {} closed", peer_id);
                                     }
@@ -463,6 +535,7 @@ impl DaemonServer {
                                         error!("Failed to open stream to peer: {}", e);
                                     }
                                 }
+                                stats.active_connections.fetch_sub(1, Ordering::Relaxed);
                             });
                         }
                     }
@@ -520,4 +593,77 @@ impl DaemonServer {
             }
         }
     }
+}
+
+/// Bridge a stream to a local TCP port with traffic stats tracking
+async fn bridge_with_stats(
+    stream: libp2p::Stream,
+    target_port: u16,
+    stats: StdArc<TrafficStats>,
+) -> wh_core::Result<(u64, u64)> {
+    use tokio::net::TcpStream;
+    use wh_core::RiftError;
+    
+    let tcp = TcpStream::connect(format!("127.0.0.1:{}", target_port))
+        .await
+        .map_err(|e| RiftError::ProxyError(format!("Failed to connect to local port {}: {}", target_port, e)))?;
+
+    // Convert futures AsyncRead/Write to tokio AsyncRead/Write using compat
+    let stream = stream.compat();
+    
+    let (mut tcp_read, mut tcp_write) = tcp.into_split();
+    let (mut stream_read, mut stream_write) = tokio::io::split(stream);
+
+    let stats_send = stats.clone();
+    let stats_recv = stats.clone();
+
+    // Bidirectional copy with stats tracking
+    let send_task = async move {
+        let mut buf = [0u8; 8192];
+        let mut total = 0u64;
+        loop {
+            match tokio::io::AsyncReadExt::read(&mut tcp_read, &mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut stream_write, &buf[..n]).await {
+                        debug!("TCP->Stream write error: {}", e);
+                        break;
+                    }
+                    total += n as u64;
+                    stats_send.bytes_sent.fetch_add(n as u64, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    debug!("TCP->Stream read error: {}", e);
+                    break;
+                }
+            }
+        }
+        total
+    };
+
+    let recv_task = async move {
+        let mut buf = [0u8; 8192];
+        let mut total = 0u64;
+        loop {
+            match tokio::io::AsyncReadExt::read(&mut stream_read, &mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    if let Err(e) = tokio::io::AsyncWriteExt::write_all(&mut tcp_write, &buf[..n]).await {
+                        debug!("Stream->TCP write error: {}", e);
+                        break;
+                    }
+                    total += n as u64;
+                    stats_recv.bytes_received.fetch_add(n as u64, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    debug!("Stream->TCP read error: {}", e);
+                    break;
+                }
+            }
+        }
+        total
+    };
+
+    let (sent, recv) = tokio::join!(send_task, recv_task);
+    Ok((sent, recv))
 }

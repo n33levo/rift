@@ -105,7 +105,7 @@ impl PeerNetwork {
                 })
             })
             .map_err(|e| RiftError::NetworkInitialization(e.to_string()))?
-            .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(60)))
+            .with_swarm_config(|c| c.with_idle_connection_timeout(std::time::Duration::from_secs(3600))) // 1 hour idle timeout
             .build();
 
         let (event_tx, event_rx) = mpsc::channel(256);
