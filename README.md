@@ -19,12 +19,10 @@ Bring a teammate's service to *your* `localhost` — **not** a public URL.
 
 **Highlights**
 - ⚡ **Low-latency QUIC tunnel** (libp2p)  
-- 🔒 **End-to-end encrypted by default** (Noise + ChaCha20-Poly1305)  
-- ✅ **Explicit host approval** (no "magic links")  
+- 🔒 **End-to-end encrypted by default** (Noise + ChaCha20-Poly1305)   
 - 🧩 **Local-to-local port mapping** (`their localhost` → `your localhost`)  
-- 🧪 **Optional EnvVault** to sync *selected* env/config  
+- 🧪 **EnvVault** to sync *selected* env/config  
 - 🧭 **P2P-first discovery** + NAT traversal (where possible)
-- 🖥️ **TUI + ergonomic CLI**
 
 ---
 
