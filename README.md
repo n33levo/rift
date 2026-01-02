@@ -2,7 +2,8 @@
 
 # ⚡ Rift
 
-**Your teammate's localhost. On your localhost.**
+**AirDrop for Localhost. Pairing-grade P2P tunneling for ports + config.**  
+Bring a teammate's service to *your* `localhost` — **not** a public URL.
 
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -12,37 +13,68 @@
 
 <img src="assets/screenshot.png" alt="Rift TUI" width="700">
 
-<br>
-
-**Stop deploying to staging. Stop screen-sharing. Stop Slack-ing `.env` screenshots.**
-
 </div>
 
 ---
 
-## What's This?
+**Highlights**
+- ⚡ **Low-latency QUIC tunnel** (libp2p)  
+- 🔒 **End-to-end encrypted by default** (Noise + ChaCha20-Poly1305)  
+- ✅ **Explicit host approval** (no "magic links")  
+- 🧩 **Local-to-local port mapping** (`their localhost` → `your localhost`)  
+- 🧪 **Optional EnvVault** to sync *selected* env/config  
+- 🧭 **P2P-first discovery** + NAT traversal (where possible)
+- 🖥️ **TUI + ergonomic CLI**
 
-Remember when your teammate said *"works on my machine"* and you wanted to just... use their machine?
+---
 
-**Now you can.**
+## The Problem
 
-Rift makes their `localhost:3000` appear on *your* `localhost:3000`. Encrypted. P2P. No public URLs.
+Pairing on real systems is always the same mess:
 
+- "Push to staging so I can see it" (**slow**)
+- "Share your screen" (**pain**)
+- "Paste your `.env` in Slack" (**please don't**)
+
+You don't want a public URL — you want your teammate's service to behave like it's running locally.
+
+---
+
+## The Solution
+
+Rift **maps their `localhost` into yours**.
+
+```text
+Your machine                       Teammate's machine
+localhost:3000  ◄── E2E-encrypted ─►  localhost:3000
 ```
-Your machine                    Teammate's machine
-localhost:3000  ◄─ encrypted ─►  localhost:3000
-```
 
-Debug against the *actual* thing that's broken, not a "reproduction" that mysteriously works.
+No public endpoints. No deploy. No ceremony.  
+Just "connect" → **debug immediately**.
+
+---
+
+## 🔒 Security & Trust (Read This First)
+
+- ✅ **Explicit approval:** every inbound session requires a host **Y/N** prompt.
+- 🔐 **Encrypted by default:** tunnel traffic is wrapped in **Noise** over **QUIC** (ChaCha20-Poly1305).
+- 🕳️ **P2P-first:** data flows peer-to-peer when possible; if relays are used for connectivity, payloads remain **end-to-end encrypted**.
+- 🧾 **Secrets are opt-in:** config sharing is explicit (you choose what to send). Rift never silently uploads secrets anywhere.
+
+> **Threat model:** built for pairing/debugging with teammates you trust — not for anonymous public access.
+
+[→ Full security details](docs/SECURITY.md)
 
 ---
 
 ## Install
 
-**Homebrew (recommended):**
 ```bash
 brew install n33levo/rift/rift
 ```
+
+<details>
+<summary>Other installation methods</summary>
 
 **From source:**
 ```bash
@@ -50,90 +82,82 @@ git clone https://github.com/n33levo/rift
 cd rift && cargo build --release
 ```
 
+</details>
+
 ---
 
-## 30-Second Demo
+## Quickstart
 
 ```bash
-# Teammate A (sharing their service)
+# On the machine running the service:
 rift share 3000
 
-# Teammate B (connecting)
+# On your machine:
 rift connect rift://12D3KooW.../3000
 ```
 
-Done. B's `localhost:3000` → A's service. Encrypted, P2P.
+Now their service is reachable on **your** `http://localhost:3000`.
 
-**With env config:**
+### Optional: share just enough config (EnvVault)
+
 ```bash
+# Host
 rift share 3000 --secrets .env.rift
-rift connect rift://... --request-secrets --save-secrets .env
+
+# Client
+rift connect rift://.../3000 --request-secrets
 ```
+
+Stop doing "set these 47 env vars" archaeology.
+
+[→ Full CLI reference](docs/USAGE.md)
 
 ---
 
-## Why Rift?
+## Use Cases
 
-- 🚫 **No staging deploys** — tunnel straight to their machine
-- 🔑 **No "send me your .env"** — encrypted config handoff built-in  
-- 🔒 **No accidental exposure** — localhost binding, explicit Y/N approval
-- ⚡ **Share anything** — APIs, databases, Streamlit, Jupyter, GPU servers
+- 🔧 **Backend ↔ Frontend pairing** (no staging deploy)
+- 🗄️ **Databases on localhost** (Postgres/Redis/Mongo)
+- 🧠 **GPU inference as localhost** (model server on a GPU box → your laptop)
+- 📈 **Dashboards & demos** (Streamlit/Gradio) without hosting
+- 🔭 **Observability ports** (TensorBoard, metrics UIs)
+- 🧰 **Internal tooling** behind NAT
 
-[→ More use cases](docs/USE_CASES.md)
+👉 More: [docs/USE_CASES.md](docs/USE_CASES.md)
 
 ---
 
 ## How It Works
 
-**mDNS discovery** → **QUIC tunnel** → **Y/N approval** → **TCP bridge**
+```text
+Discovery → Encrypted QUIC session → Host approval → TCP bridge (local ↔ local)
+```
 
-Built on [libp2p](https://libp2p.io). Encrypted end-to-end (X25519 + ChaCha20-Poly1305). NAT hole-punching.
+Built on **libp2p**:
 
-[→ Architecture details](docs/HOW_IT_WORKS.md)
+* mDNS discovery on LAN
+* QUIC transport + Noise encryption
+* NAT traversal (DCUtR) where possible
 
----
-
-## Security
-
-- 🔐 **E2E encrypted** — X25519, ChaCha20-Poly1305
-- 👤 **Explicit approval** — every connection needs host's Y/N
-- 🏠 **Localhost by default** — not exposed to your network
-- 🔑 **Secrets opt-in** — AES-256-GCM, session-only
-
-[→ Security details](docs/SECURITY.md)
+[→ Architecture deep dive](docs/HOW_IT_WORKS.md)
 
 ---
 
 ## Not For
 
-❌ Public URLs → use ngrok  
-❌ Production → use real infra  
-❌ Untrusted people → made for teammates
+Rift is **not** a public hosting platform.
 
----
-
-## FAQ
-
-**Q: Like ngrok?**  
-A: If ngrok and SSH had a baby raised by libp2p. No public URLs.
-
-**Q: Why not SSH tunnels?**  
-A: It's 2026. We have better things to debug.
-
-**Q: Multiple ports?**  
-A: Run `rift share` in multiple terminals.
-
-**Q: Works over internet?**  
-A: Yes. Relay bootstrap → NAT hole-punch → direct P2P.
+If you need a public URL for customers/PMs, use **ngrok / Cloudflare Tunnel / Vercel previews**.  
+Use Rift when you want **pairing-grade, local-to-local debugging** with teammates.
 
 ---
 
 ## Docs
 
-- [Usage Guide](docs/USAGE.md)
-- [Use Cases](docs/USE_CASES.md)
-- [Security](docs/SECURITY.md)
-- [How It Works](docs/HOW_IT_WORKS.md)
+- [Usage Guide](docs/USAGE.md) — CLI reference, examples
+- [Use Cases](docs/USE_CASES.md) — Real-world scenarios  
+- [Security](docs/SECURITY.md) — Threat model, best practices
+- [Architecture](docs/HOW_IT_WORKS.md) — How it's built
 
 ---
 
@@ -147,8 +171,8 @@ A: Yes. Relay bootstrap → NAT hole-punch → direct P2P.
 
 **MIT License**
 
-*"AirDrop for localhost ports"*
+Built with ⚡ by developers tired of deploying to staging
 
-[⭐ Star if you've ever said "works on my machine" ⭐](https://github.com/n33levo/rift)
+[⭐ Give it a star if you've ever said "works on my machine" ⭐](https://github.com/n33levo/rift)
 
 </div>
